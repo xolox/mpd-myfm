@@ -2,3 +2,6 @@
  * Use the similarity percentages returned by Last.fm to add weights to the
    list of tracks from which the next track is picked, so that more similar
    tracks are preferred over less similar tracks.
+ * Select random similar artists instead of tracks, because otherwise the
+   number of tracks per artist influences the randomness too much? (of course
+   this assumes each artist has several tracks)
