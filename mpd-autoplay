@@ -22,6 +22,9 @@ RECONNECT_TIME = 60
 # The number of seconds between updates to the playlist.
 UPDATE_TIME = 5
 
+# Number of tracks before end of playlist to start adding songs.
+SONGS_LEFT = 3
+
 def connect(client):
 	global MPD_HOST, MPD_PORT, MPD_PASS
 	try:
@@ -47,8 +50,7 @@ while 1:
 						artistsindb[track['artist']] = []
 					artistsindb[track['artist']].append(track['file'])
 		status = client.status()
-		print status
-		if status.has_key('song') and int(status['random']) == 0 and int(status['repeat']) == 0 and (int(status['playlistlength']) - 1) == int(status['song']):
+		if status.has_key('song') and int(status['random']) == 0 and int(status['repeat']) == 0 and int(status['playlistlength']) <= (int(status['song']) + SONGS_LEFT): 
 			# Get last artist in playlist.
 			lastartist = client.playlistinfo()[-1]['artist']
 			# Getl similar artists from Last.fm
