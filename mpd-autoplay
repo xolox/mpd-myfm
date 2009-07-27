@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+import mpd
+import random
+import sys
+import time
+import urllib
+import socket
+
+# The hostname of the Music Player Daemon
+MPD_HOST = '127.0.0.1'
+
+# The port number on which MPD is listening (6600 by default)
+MPD_PORT = 6600
+
+# The password for connecting with MPD.
+MPD_PASS = ''
+
+# The number of seconds before the client tries to reconnect.
+RECONNECT_TIME = 60
+
+# The number of seconds between updates to the playlist.
+UPDATE_TIME = 5
+
+def connect(client):
+	global MPD_HOST, MPD_PORT, MPD_PASS
+	try:
+		client.connect(host=MPD_HOST, port=MPD_PORT)
+		if MPD_PASS != '': client.password(MPD_PASS)
+		return True
+	except socket.error:
+		return False
+
+client = mpd.MPDClient()
+artistsindb = {}
+
+if not connect(client):
+	print 'Could not connect to MPD server at', MPD_HOST
+	sys.exit(1)
+
+while 1:
+	try:
+		if artistsindb == {}:
+			for track in client.listallinfo():
+				if 'artist' in track:
+					if not artistsindb.has_key(track['artist']):
+						artistsindb[track['artist']] = []
+					artistsindb[track['artist']].append(track['file'])
+		status = client.status()
+		print status
+		if status.has_key('song') and int(status['random']) == 0 and int(status['repeat']) == 0 and (int(status['playlistlength']) - 1) == int(status['song']):
+			# Get last artist in playlist.
+			lastartist = client.playlistinfo()[-1]['artist']
+			# Getl similar artists from Last.fm
+			address = 'http://ws.audioscrobbler.com/2.0/artist/%s/similar.txt?limit=%i'
+			handle = urllib.urlopen(address % (urllib.quote(lastartist), 100))
+			lines = handle.read().split("\n")
+			handle.close()
+			similarartists = []
+			for record in [line.split(",") for line in lines]:
+				if len(record) == 3:
+					similarartists.append(record[2])
+			# Remove the selected artist from the similar artists?
+			if lastartist in similarartists:
+				similarartists.remove(lastartist)
+			# Select the similar tracks from the database.
+			similartracks = []
+			for similarartist in similarartists:
+				if artistsindb.has_key(similarartist):
+					similartracks.extend(artistsindb[similarartist])
+			# Select a random track from the similar tracks.
+			similartrack = random.choice(similartracks)
+			# Add track to playlist.
+			client.add(similartrack)
+	except mpd.ConnectionError, msgconerrer:
+		print 'lost connection? %s' % msgconerrer
+		time.sleep(RECONNECT_TIME)
+		while not connect(): pass
+	except KeyboardInterrupt:
+		client.disconnect()
+		break
+	time.sleep(UPDATE_TIME)

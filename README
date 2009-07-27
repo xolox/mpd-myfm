@@ -1,0 +1,15 @@
+This Python script implements a console client for Music Player Daemon that
+adds tracks from similar artists to your playlist before you reach the end of
+your playlist.
+
+The similar artists are retrieved from the Last.fm database, which means you'll
+need an active internet connection for the client to work.
+
+Right now you'll need to edit the UPPERCASE variables at the top of the script
+according to your setup before you can run the client.
+
+This script uses the Python "mpd" module. On Ubuntu you can install this module
+by executing the command "sudo apt-get install python-mpd" without the quotes.
+
+To disable the client without killing it you can enable random and/or repeat.
+The client will start working again when you disable both random and repeat.
