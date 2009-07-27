@@ -1,0 +1,4 @@
+ * Write an init script so that the client starts automatically after MPD.
+ * Use the similarity percentages returned by Last.fm to add weights to the
+   list of tracks from which the next track is picked, so that more similar
+   tracks are preferred over less similar tracks.
