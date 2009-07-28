@@ -13,8 +13,8 @@ def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:h', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'help'])
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'verbose', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
@@ -28,6 +28,7 @@ def main(): # {{{1
 	updatetime = 5
 	reconnecttime = 60
 	repeatfactor = 20
+	verbosity = 0
 
 	# Process the command-line options.
 	for option, argument in options:
@@ -38,6 +39,7 @@ def main(): # {{{1
 		elif option in ('-u', '--update'): updatetime = int(argument)
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
+		elif option in ('-v', '--verbose'): verbosity += 1
 		elif option in ('-h', '--help'):
 			usage()
 			sys.exit(0)
@@ -56,12 +58,15 @@ def main(): # {{{1
 	else:
 		while 1:
 			try:
+				# Create mappings between (artist->tracks) and (genre->tracks)?
 				if artistsindb == {}:
 					for track in client.listallinfo():
-						if 'artist' in track and track['artist'] != '':
-							if not artistsindb.has_key(track['artist']):
-								artistsindb[track['artist']] = []
-							artistsindb[track['artist']].append(track['file'])
+						if 'artist' in track:
+							artist = simplifyname(track['artist'])
+							if artist != '':
+								if not artistsindb.has_key(artist):
+									artistsindb[artist] = []
+								artistsindb[artist].append(track['file'])
 						if 'genre' in track:
 							# track['genre'] can be a list of genres ..
 							if type(track['genre']) == type(''): genres = [track['genre']]
@@ -69,29 +74,44 @@ def main(): # {{{1
 							else: genres = []
 							# and may contain duplicates :\
 							for genre in unique(genres):
+								genre = simplifyname(genre)
 								if genre != '':
 									if not genresindb.has_key(genre): genresindb[genre] = []
 									genresindb[genre].append(track['file'])
-				if autoplayenabled(client.status(), songsleft):
-					lastartist = client.playlistinfo()[-1]['artist']
-					similarartists = getsimilarartists(lastartist)
+				if autoplayenabled(client.status(), songsleft, verbosity):
+					lasttrack = client.playlistinfo()[-1]
+					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
 					similartracks = findtracks(artistsindb, similarartists)
-					similartracks = filterplaylisttracks(client, repeatfactor, similartracks)
+					similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) <= 3: # TODO Make treshold configurable?
-						genre = client.playlistinfo()[-1]['genre']
-						if genresindb.has_key(genre):
+						if lasttrack.has_key('genre') and genresindb.has_key(lasttrack['genre']):
 							similartracks.extend(genresindb[genre])
-							similartracks = filterplaylisttracks(client, repeatfactor, similartracks)
-					client.add(random.choice(similartracks))
-				time.sleep(updatetime)
-			except mpd.ConnectionError, msgconerrer:
+							similartracks = filterduplicates(client, repeatfactor, similartracks)
+					if len(similartracks) >= 1:
+						client.add(random.choice(similartracks))
+					elif verbosity >= 1:
+						print 'Failed to find similar track based on artist nor genre!'
+				# Sleep for a while before trying to update again.
+				sleep(updatetime, verbosity)
+			except (socket.error, mpd.ConnectionError), msgconerrer:
+				# Let the user know what's going on.
 				print 'Lost connection? (%s)' % msgconerrer
-				time.sleep(reconnecttime)
-				while not connect(client, hostname, portnr, passwd):
-					pass
+				# Try to close the connection in case it's still open.
+				try: client.disconnect()
+				except: pass
+				# Sleep for a while before trying to reconnect.
+				sleep(reconnecttime, verbosity)
+				# Loop until we're connected to MPD again.
+				while not connect(client, hostname, portnr, passwd): pass
 			except KeyboardInterrupt:
+				# Disconnect and close client when interrupted.
 				client.disconnect()
 				break
+
+def sleep(seconds, verbosity): # {{{1
+	if verbosity >= 2:
+		print 'Sleeping for', seconds, 'seconds'
+	time.sleep(seconds)
 
 def unique(list): # {{{1
     result = []
@@ -100,35 +120,53 @@ def unique(list): # {{{1
             result.append(item)
     return result
 
-def filterplaylisttracks(client, repeatfactor, tracks): # {{{1
+def filterduplicates(client, repeatfactor, tracks): # {{{1
+	"""
+	Make sure a track is never repeated before a configurable number of other
+	tracks (by default 20) has been played. The number of tracks can be set
+	using the -s or --songs command-line argument.
+	"""
 	trackstofilter = client.playlist()
 	if len(trackstofilter) > repeatfactor:
 		trackstofilter = trackstofilter[-repeatfactor]
 	return [t for t in tracks if not t in trackstofilter]
 
-def autoplayenabled(status, songsleft): # {{{1
-	# The client doesn't do anything when MPD isn't playing.
-	if not status.has_key('song'):
+import re
+
+def simplifyname(artist): # {{{1
+	"""
+	Simplify artist names for fuzzy matching.
+	"""
+	artist = artist.lower()
+	artist = re.sub('^the\s+', '', artist)
+	artist = re.sub(',\s+the$', '', artist)
+	return re.sub('[^a-z0-9]', '', artist)
+
+def autoplayenabled(status, songsleft, verbosity): # {{{1
+	if int(status['playlistlength']) == 0:
+		if verbosity >= 1: print "Doing nothing because play list is empty."
 		return False
-	# The client doesn't do anything when the user enables random and/or repeat.
-	if int(status['random']) != 0 or int(status['repeat']) != 0:
+	if int(status['random']) != 0:
+		if verbosity >= 1: print "Doing nothing because random is enabled."
 		return False
-	# The client doesn't do anything when the end of the play list hasn't been reached yet.
-	if int(status['playlistlength']) > (int(status['song']) + songsleft):
+	if int(status['repeat']) != 0:
+		if verbosity >= 1: print "Doing nothing because repeat is enabled."
 		return False
-	# Otherwise, the client is enabled.
+	if status.has_key('song') and int(status['playlistlength']) > (int(status['song']) + songsleft) \
+			or not status.has_key('song') and int(status['playlistlength']) >= songsleft:
+		if verbosity >= 1: print "Doing nothing because the end of the playlist hasn't been reached."
+		return False
 	return True
 
 def findtracks(artistsindb, artists): # {{{1
 	""" Return a list of tracks in the MPD library from any of the given artists. """
-	# TODO Fall back to tracks from same genre when no artists were given..
 	tracks = []
 	for artist in artists:
 		if artistsindb.has_key(artist):
 			tracks.extend(artistsindb[artist])
 	return tracks
 
-def getsimilarartists(artistname, limit=100): # {{{1
+def getsimilarartists(artistname, verbosity, limit=200): # {{{1
 	"""
 	Get a list of similar artists from Last.fm. The list is sorted by
 	decreasing similarity.
@@ -140,8 +178,16 @@ def getsimilarartists(artistname, limit=100): # {{{1
 	similarartists = []
 	for record in [line.split(",") for line in lines]:
 		if len(record) == 3:
-			similarartists.append(record[2])
-	if artistname in similarartists:
+			simplename = simplifyname(record[2])
+			if simplename != '':
+				similarartists.append(simplename)
+	if verbosity >= 1:
+		print 'Fetched %i artists similar to %s from Last.fm' \
+				% (len(similarartists), artistname)
+	artistname = simplifyname(artistname)
+	while artistname in similarartists:
+		if verbosity >= 2:
+			print 'Filtering %s from similar artists' % (artistname)
 		similarartists.remove(artistname)
 	return similarartists
 
