@@ -13,8 +13,8 @@ def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:h', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'help'])
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:h', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
@@ -27,6 +27,7 @@ def main(): # {{{1
 	songsleft = 3
 	updatetime = 5
 	reconnecttime = 60
+	repeatfactor = 20
 
 	# Process the command-line options.
 	for option, argument in options:
@@ -36,6 +37,7 @@ def main(): # {{{1
 		elif option in ('-s', '--songs'): songsleft = int(argument)
 		elif option in ('-u', '--update'): updatetime = int(argument)
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
+		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
 		elif option in ('-h', '--help'):
 			usage()
 			sys.exit(0)
@@ -46,6 +48,7 @@ def main(): # {{{1
 	
 	client = mpd.MPDClient()
 	artistsindb = {}
+	genresindb = {}
 	if not connect(client, hostname, portnr, passwd):
 		print "Failed to connect to MPD server at `%s' on port `%i'" % (hostname, portnr)
 		usage()
@@ -55,14 +58,30 @@ def main(): # {{{1
 			try:
 				if artistsindb == {}:
 					for track in client.listallinfo():
-						if 'artist' in track:
+						if 'artist' in track and track['artist'] != '':
 							if not artistsindb.has_key(track['artist']):
 								artistsindb[track['artist']] = []
 							artistsindb[track['artist']].append(track['file'])
+						if 'genre' in track:
+							# track['genre'] can be a list of genres ..
+							if type(track['genre']) == type(''): genres = [track['genre']]
+							elif type(track['genre']) == type([]): genres = track['genre']
+							else: genres = []
+							# and may contain duplicates :\
+							for genre in unique(genres):
+								if genre != '':
+									if not genresindb.has_key(genre): genresindb[genre] = []
+									genresindb[genre].append(track['file'])
 				if autoplayenabled(client.status(), songsleft):
 					lastartist = client.playlistinfo()[-1]['artist']
 					similarartists = getsimilarartists(lastartist)
 					similartracks = findtracks(artistsindb, similarartists)
+					similartracks = filterplaylisttracks(client, repeatfactor, similartracks)
+					if len(similartracks) <= 3: # TODO Make treshold configurable?
+						genre = client.playlistinfo()[-1]['genre']
+						if genresindb.has_key(genre):
+							similartracks.extend(genresindb[genre])
+							similartracks = filterplaylisttracks(client, repeatfactor, similartracks)
 					client.add(random.choice(similartracks))
 				time.sleep(updatetime)
 			except mpd.ConnectionError, msgconerrer:
@@ -73,6 +92,19 @@ def main(): # {{{1
 			except KeyboardInterrupt:
 				client.disconnect()
 				break
+
+def unique(list): # {{{1
+    result = []
+    for item in list:
+        if item not in result:
+            result.append(item)
+    return result
+
+def filterplaylisttracks(client, repeatfactor, tracks): # {{{1
+	trackstofilter = client.playlist()
+	if len(trackstofilter) > repeatfactor:
+		trackstofilter = trackstofilter[-repeatfactor]
+	return [t for t in tracks if not t in trackstofilter]
 
 def autoplayenabled(status, songsleft): # {{{1
 	# The client doesn't do anything when MPD isn't playing.
