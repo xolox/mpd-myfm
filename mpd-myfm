@@ -86,10 +86,11 @@ def main(): # {{{1
 					similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) <= 3: # TODO Make treshold configurable?
 						if lasttrack.has_key('genre') and genresindb.has_key(lasttrack['genre']):
-							similartracks.extend(genresindb[genre])
+							for filename in genresindb[genre]:
+								similartracks.append([0.2, filename])
 							similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) >= 1:
-						client.add(random.choice(similartracks))
+						client.add(weightedrandomchoice(similartracks))
 					elif verbosity >= 1:
 						print 'Failed to find similar track based on artist nor genre!'
 				# Sleep for a while before trying to update again.
@@ -114,6 +115,21 @@ def sleep(seconds, verbosity): # {{{1
 		print 'Sleeping for', seconds, 'seconds'
 	time.sleep(seconds)
 
+def weightedrandomchoice(items): # {{{1
+	"""
+	Pick a weighted random value from a list of lists, where each list contains
+	a numeric weight followed by any type of associated value.
+	"""
+	total = 0
+	for item in items:
+		total += item[0]
+	threshold = random.random() * total
+	items.sort()
+	for item in items:
+		threshold -= item[0]
+		if threshold <= 0:
+			return item[1]
+
 def unique(list): # {{{1
     result = []
     for item in list:
@@ -130,7 +146,7 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 	trackstofilter = client.playlist()
 	if len(trackstofilter) > repeatfactor:
 		trackstofilter = trackstofilter[-repeatfactor]
-	return [t for t in tracks if not t in trackstofilter]
+	return [t for t in tracks if not t[1] in trackstofilter]
 
 def simplifyname(artist): # {{{1
 	"""
@@ -158,37 +174,41 @@ def clientenabled(status, songsleft, verbosity): # {{{1
 		return False
 	return True
 
-def findtracks(artistsindb, artists): # {{{1
-	""" Return a list of tracks in the MPD library from any of the given artists. """
+def findtracks(artistsindb, similarartists): # {{{1
+	"""
+	Return a list of tracks in the Music Player Daemon library from any of the
+	given artists. The numeric similarity associated with each artist is copied
+	to all tracks by that artist.
+	"""
 	tracks = []
-	for artist in artists:
-		if artistsindb.has_key(artist):
-			tracks.extend(artistsindb[artist])
+	for [similarity, artistname] in similarartists:
+		if artistsindb.has_key(artistname):
+			for filename in artistsindb[artistname]:
+				tracks.append([similarity, filename])
 	return tracks
 
-def getsimilarartists(artistname, verbosity, limit=200): # {{{1
+def getsimilarartists(inputartist, verbosity, limit=200): # {{{1
 	"""
-	Get a list of similar artists from Last.fm. The list is sorted by
-	decreasing similarity.
+	Get a list of lists with similar artists from Last.fm. Each list contains a
+	numeric similarity (between 0 and 100) followed by an artist name. The
+	artists are sorted by decreasing similarity.
 	"""
 	address = 'http://ws.audioscrobbler.com/2.0/artist/%s/similar.txt?limit=%i'
-	handle = urllib.urlopen(address % (urllib.quote(simplifyname(artistname)), limit))
+	inputartistsimple = simplifyname(inputartist)
+	handle = urllib.urlopen(address % (urllib.quote(inputartistsimple), limit))
 	lines = handle.read().split("\n")
 	handle.close()
 	similarartists = []
 	for record in [line.split(",") for line in lines]:
 		if len(record) == 3:
 			simplename = simplifyname(record[2])
-			if simplename != '':
-				similarartists.append(simplename)
+			if simplename != '' and simplename != inputartistsimple:
+				similarity = float(record[0])
+				similarartists.append([similarity, simplename])
 	if verbosity >= 1:
 		print 'Fetched %i artists similar to %s from Last.fm' \
-				% (len(similarartists), artistname)
-	artistname = simplifyname(artistname)
-	while artistname in similarartists:
-		if verbosity >= 2:
-			print 'Filtering %s from similar artists' % (artistname)
-		similarartists.remove(artistname)
+				% (len(similarartists), inputartist)
+	similarartists.sort(None, None, True)
 	return similarartists
 
 def connect(client, hostname, portnr, passwd): # {{{1
