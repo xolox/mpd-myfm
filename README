@@ -5,8 +5,9 @@ your playlist.
 The similar artists are retrieved from the Last.fm database, which means you'll
 need an active internet connection for the client to work.
 
-Right now you'll need to edit the UPPERCASE variables at the top of the script
-according to your setup before you can run the client.
+Unless you're running Music Player Daemon on your local machine you'll need to
+provide the host name to the client using the -H or --host command-line option.
+You can use -h or --help to show a list of available options.
 
 This script uses the Python "mpd" module. On Ubuntu you can install this module
 by executing the command "sudo apt-get install python-mpd" without the quotes.
