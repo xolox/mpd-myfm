@@ -4,6 +4,7 @@ import getopt
 import mpd
 import os
 import random
+import re
 import socket
 import sys
 import time
@@ -131,8 +132,6 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 		trackstofilter = trackstofilter[-repeatfactor]
 	return [t for t in tracks if not t in trackstofilter]
 
-import re
-
 def simplifyname(artist): # {{{1
 	"""
 	Simplify artist names for fuzzy matching.
@@ -140,7 +139,8 @@ def simplifyname(artist): # {{{1
 	artist = artist.lower()
 	artist = re.sub('^the\s+', '', artist)
 	artist = re.sub(',\s+the$', '', artist)
-	return re.sub('[^a-z0-9]', '', artist)
+	artist = re.sub('[^a-z0-9 ]', '', artist)
+	return re.sub('\s+', ' ', artist)
 
 def clientenabled(status, songsleft, verbosity): # {{{1
 	if int(status['playlistlength']) == 0:
@@ -172,7 +172,7 @@ def getsimilarartists(artistname, verbosity, limit=200): # {{{1
 	decreasing similarity.
 	"""
 	address = 'http://ws.audioscrobbler.com/2.0/artist/%s/similar.txt?limit=%i'
-	handle = urllib.urlopen(address % (urllib.quote(artistname), limit))
+	handle = urllib.urlopen(address % (urllib.quote(simplifyname(artistname)), limit))
 	lines = handle.read().split("\n")
 	handle.close()
 	similarartists = []
