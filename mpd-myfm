@@ -92,8 +92,8 @@ def main(): # {{{1
 					if len(similartracks) >= 1:
 						tracktoadd = weightedrandomchoice(similartracks)
 						client.add(tracktoadd)
-							if verbosity >= 1:
-								print 'Added', tracktoadd, 'to playlist.'
+						if verbosity >= 1:
+							print 'Added', tracktoadd, 'to playlist.'
 					elif verbosity >= 1:
 						print 'Failed to find similar track based on artist nor genre!'
 				# Sleep for a while before trying to update again.
