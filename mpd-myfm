@@ -78,7 +78,7 @@ def main(): # {{{1
 								if genre != '':
 									if not genresindb.has_key(genre): genresindb[genre] = []
 									genresindb[genre].append(track['file'])
-				if autoplayenabled(client.status(), songsleft, verbosity):
+				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
 					similartracks = findtracks(artistsindb, similarartists)
@@ -142,7 +142,7 @@ def simplifyname(artist): # {{{1
 	artist = re.sub(',\s+the$', '', artist)
 	return re.sub('[^a-z0-9]', '', artist)
 
-def autoplayenabled(status, songsleft, verbosity): # {{{1
+def clientenabled(status, songsleft, verbosity): # {{{1
 	if int(status['playlistlength']) == 0:
 		if verbosity >= 1: print "Doing nothing because play list is empty."
 		return False
