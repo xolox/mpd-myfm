@@ -90,7 +90,10 @@ def main(): # {{{1
 								similartracks.append([0.2, filename])
 							similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) >= 1:
-						client.add(weightedrandomchoice(similartracks))
+						tracktoadd = weightedrandomchoice(similartracks)
+						client.add(tracktoadd)
+							if verbosity >= 1:
+								print 'Added', tracktoadd, 'to playlist.'
 					elif verbosity >= 1:
 						print 'Failed to find similar track based on artist nor genre!'
 				# Sleep for a while before trying to update again.
@@ -160,17 +163,17 @@ def simplifyname(artist): # {{{1
 
 def clientenabled(status, songsleft, verbosity): # {{{1
 	if int(status['playlistlength']) == 0:
-		if verbosity >= 1: print "Doing nothing because play list is empty."
+		if verbosity >= 3: print "Doing nothing because play list is empty."
 		return False
 	if int(status['random']) != 0:
-		if verbosity >= 1: print "Doing nothing because random is enabled."
+		if verbosity >= 3: print "Doing nothing because random is enabled."
 		return False
 	if int(status['repeat']) != 0:
-		if verbosity >= 1: print "Doing nothing because repeat is enabled."
+		if verbosity >= 3: print "Doing nothing because repeat is enabled."
 		return False
 	if status.has_key('song') and int(status['playlistlength']) > (int(status['song']) + songsleft) \
 			or not status.has_key('song') and int(status['playlistlength']) >= songsleft:
-		if verbosity >= 1: print "Doing nothing because the end of the playlist hasn't been reached."
+		if verbosity >= 3: print "Doing nothing because the end of the playlist hasn't been reached."
 		return False
 	return True
 
@@ -205,7 +208,7 @@ def getsimilarartists(inputartist, verbosity, limit=200): # {{{1
 			if simplename != '' and simplename != inputartistsimple:
 				similarity = float(record[0])
 				similarartists.append([similarity, simplename])
-	if verbosity >= 1:
+	if verbosity >= 2:
 		print 'Fetched %i artists similar to %s from Last.fm' \
 				% (len(similarartists), inputartist)
 	similarartists.sort(None, None, True)
