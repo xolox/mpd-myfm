@@ -54,47 +54,28 @@ def main(): # {{{1
 			sys.exit(1)
 
 	client = mpd.MPDClient()
-	artistsindb = {}
-	genresindb = {}
 	if not connect(client, hostname, portnr, passwd):
 		print "Failed to connect to MPD server at `%s' on port `%i'" % (hostname, portnr)
 		usage()
 		sys.exit(1)
 	else:
+		# Create an index from the user's library.
+		index = LibraryIndex(client)
 		# Get the user's loved tracks from Last.fm?
 		lovedtracks = []
 		if lastfmaccountforlovedtracks != '':
 			lovedtracks = findlovedtracks(lastfmaccountforlovedtracks)
 		while 1:
 			try:
-				# Create mappings between (artist->tracks) and (genre->tracks)?
-				if artistsindb == {}:
-					for track in client.listallinfo():
-						if 'artist' in track:
-							artist = simplifyname(track['artist'])
-							if artist != '':
-								if not artistsindb.has_key(artist):
-									artistsindb[artist] = []
-								artistsindb[artist].append(track)
-						if 'genre' in track:
-							# track['genre'] can be a list of genres ..
-							if type(track['genre']) == type(''): genres = [track['genre']]
-							elif type(track['genre']) == type([]): genres = track['genre']
-							else: genres = []
-							# and may contain duplicates :\
-							for genre in unique(genres):
-								genre = simplifyname(genre)
-								if genre != '':
-									if not genresindb.has_key(genre): genresindb[genre] = []
-									genresindb[genre].append(track)
 				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
-					similartracks = findtracks(artistsindb, similarartists)
+					similartracks = findsimilartracks(index, similarartists)
 					similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) <= 3: # TODO Make treshold configurable?
-						if lasttrack.has_key('genre') and genresindb.has_key(lasttrack['genre']):
-							for track in genresindb[genre]: similartracks.append([0.2, track])
+						if lasttrack.has_key('genre'):
+							for track in index.findtracksingenre(lasttrack['genre']):
+								similartracks.append([0.1, track])
 							similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) >= 1:
 						# TODO Add more weight to loved tracks
@@ -197,7 +178,7 @@ def clientenabled(status, songsleft, verbosity): # {{{1
 		return False
 	return True
 
-def findtracks(artistsindb, similarartists): # {{{1
+def findsimilartracks(index, similarartists): # {{{1
 	"""
 	Return a list of tracks in the Music Player Daemon library from any of the
 	given artists. The numeric similarity associated with each artist is copied
@@ -205,9 +186,8 @@ def findtracks(artistsindb, similarartists): # {{{1
 	"""
 	tracks = []
 	for [similarity, artistname] in similarartists:
-		if artistsindb.has_key(artistname):
-			for track in artistsindb[artistname]:
-				tracks.append([similarity, track])
+		for track in index.findtracksbyartist(artistname):
+			tracks.append([similarity, track])
 	return tracks
 
 def getsimilarartists(inputartist, verbosity, limit=200): # {{{1
@@ -311,6 +291,40 @@ def usage(): # {{{1
 	print '  -s, --songs=COUNT            number of tracks before end of playlist to start adding songs (3)'
 	print '  -l, --love=USERNAME          play tracks loved by user on Last.fm more frequently'
 	print '  -h, --help                   show this help'
+
+class LibraryIndex: # {{{1
+
+	def __init__(self, mpdclient): # {{{2
+		self.__artists = {}
+		self.__genres = {}
+		for track in mpdclient.listallinfo():
+			self.__addtoindex('artist', track, self.__artists)
+			self.__addtoindex('genre', track, self.__genres)
+
+	def __addtoindex(self, field, track, index): # {{{2
+		if field in track:
+			values = track[field]
+			# track['genre'] can be a list of genres..
+			if type(values) != type([]): values = [values]
+			# and it may contain duplicates?! :\
+			for value in unique(values):
+				key = simplifyname(value)
+				if key != '':
+					if not index.has_key(key):
+						index[key] = []
+					index[key].append(track)
+
+	def findtracksbyartist(self, artistname): # {{{2
+		key = simplifyname(artistname)
+		if self.__artists.has_key(key):
+			return self.__artists[key]
+		return []
+
+	def findtracksingenre(self, genrename): # {{{2
+		simplename = simplifyname(genrename)
+		if self.__genres.has_key(simplename):
+			return self.__genres[simplename]
+		return []
 
 # }}}1
 
