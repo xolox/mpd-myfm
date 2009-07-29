@@ -1,9 +1,10 @@
 This Python script implements a console client for Music Player Daemon that
 adds tracks from similar artists to your playlist before you reach the end of
-your playlist.
+your playlist. It's called "mpd-myfm" because it's supposed to work like a
+personalized radio station that adapts to your moods and favorites.
 
-The similar artists are retrieved from the Last.fm database, which means you'll
-need an active internet connection for the client to work.
+Similar artists and favorite tracks are retrieved from the Last.fm database,
+which means you'll need an active internet connection for the client to work.
 
 Unless you're running Music Player Daemon on your local machine you'll need to
 provide the host name to the client using the -H or --host command-line option.

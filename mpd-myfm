@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+# vim: set fileencoding=utf-8 :
 
 import getopt
+import htmlentitydefs
 import mpd
 import os
 import random
@@ -14,8 +16,8 @@ def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'verbose', 'help'])
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'verbose', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
@@ -30,6 +32,7 @@ def main(): # {{{1
 	reconnecttime = 60
 	repeatfactor = 20
 	verbosity = 0
+	lastfmaccountforlovedtracks = ''
 
 	# Process the command-line options.
 	for option, argument in options:
@@ -40,6 +43,7 @@ def main(): # {{{1
 		elif option in ('-u', '--update'): updatetime = int(argument)
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
+		elif option in ('-l', '--love'): lastfmaccountforlovedtracks = argument
 		elif option in ('-v', '--verbose'): verbosity += 1
 		elif option in ('-h', '--help'):
 			usage()
@@ -48,7 +52,7 @@ def main(): # {{{1
 			print "Unhandled option `%s'" % (option)
 			usage()
 			sys.exit(1)
-	
+
 	client = mpd.MPDClient()
 	artistsindb = {}
 	genresindb = {}
@@ -57,6 +61,10 @@ def main(): # {{{1
 		usage()
 		sys.exit(1)
 	else:
+		# Get the user's loved tracks from Last.fm?
+		lovedtracks = []
+		if lastfmaccountforlovedtracks != '':
+			lovedtracks = findlovedtracks(lastfmaccountforlovedtracks)
 		while 1:
 			try:
 				# Create mappings between (artist->tracks) and (genre->tracks)?
@@ -67,7 +75,7 @@ def main(): # {{{1
 							if artist != '':
 								if not artistsindb.has_key(artist):
 									artistsindb[artist] = []
-								artistsindb[artist].append(track['file'])
+								artistsindb[artist].append(track)
 						if 'genre' in track:
 							# track['genre'] can be a list of genres ..
 							if type(track['genre']) == type(''): genres = [track['genre']]
@@ -78,7 +86,7 @@ def main(): # {{{1
 								genre = simplifyname(genre)
 								if genre != '':
 									if not genresindb.has_key(genre): genresindb[genre] = []
-									genresindb[genre].append(track['file'])
+									genresindb[genre].append(track)
 				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
@@ -86,14 +94,15 @@ def main(): # {{{1
 					similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) <= 3: # TODO Make treshold configurable?
 						if lasttrack.has_key('genre') and genresindb.has_key(lasttrack['genre']):
-							for filename in genresindb[genre]:
-								similartracks.append([0.2, filename])
+							for track in genresindb[genre]: similartracks.append([0.2, track])
 							similartracks = filterduplicates(client, repeatfactor, similartracks)
 					if len(similartracks) >= 1:
+						# TODO Add more weight to loved tracks
+						marklovedtracks(similartracks, lovedtracks, verbosity)
 						tracktoadd = weightedrandomchoice(similartracks)
-						client.add(tracktoadd)
+						client.add(tracktoadd['file'])
 						if verbosity >= 1:
-							print 'Added', tracktoadd, 'to playlist.'
+							print 'Added', tracktoadd['file'], 'to playlist.'
 					elif verbosity >= 1:
 						print 'Failed to find similar track based on artist nor genre!'
 				# Sleep for a while before trying to update again.
@@ -113,7 +122,14 @@ def main(): # {{{1
 				client.disconnect()
 				break
 
-def sleep(seconds, verbosity): # {{{1
+def unique(list): # {{{2
+    result = []
+    for item in list:
+        if item not in result:
+            result.append(item)
+    return result
+
+def sleep(seconds, verbosity): # {{{2
 	if verbosity >= 2:
 		print 'Sleeping for', seconds, 'seconds'
 	time.sleep(seconds)
@@ -133,13 +149,6 @@ def weightedrandomchoice(items): # {{{1
 		if threshold <= 0:
 			return item[1]
 
-def unique(list): # {{{1
-    result = []
-    for item in list:
-        if item not in result:
-            result.append(item)
-    return result
-
 def filterduplicates(client, repeatfactor, tracks): # {{{1
 	"""
 	Make sure a track is never repeated before a configurable number of other
@@ -149,17 +158,28 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 	trackstofilter = client.playlist()
 	if len(trackstofilter) > repeatfactor:
 		trackstofilter = trackstofilter[-repeatfactor]
-	return [t for t in tracks if not t[1] in trackstofilter]
+	return [t for t in tracks if not t[1]['file'] in trackstofilter]
 
-def simplifyname(artist): # {{{1
+def simplifyname(string): # {{{1
 	"""
 	Simplify artist names for fuzzy matching.
 	"""
-	artist = artist.lower()
-	artist = re.sub('^the\s+', '', artist)
-	artist = re.sub(',\s+the$', '', artist)
-	artist = re.sub('[^a-z0-9 ]', '', artist)
-	return re.sub('\s+', ' ', artist)
+	global _cachednames
+	if _cachednames.has_key(string):
+		return _cachednames[string]
+	else:
+		result = string.lower()
+		result = re.sub('^the\s+', '', result)
+		result = re.sub(',\s+the$', '', result)
+		result = re.sub('[^a-z0-9 -]', '', result)
+		result = re.sub('\s+', ' ', result)
+		_cachednames[string] = result
+		return result
+
+_cachednames = {}
+
+def simplecompare(left, right): # {{{1
+	return simplifyname(left) == simplifyname(right)
 
 def clientenabled(status, songsleft, verbosity): # {{{1
 	if int(status['playlistlength']) == 0:
@@ -186,33 +206,89 @@ def findtracks(artistsindb, similarartists): # {{{1
 	tracks = []
 	for [similarity, artistname] in similarartists:
 		if artistsindb.has_key(artistname):
-			for filename in artistsindb[artistname]:
-				tracks.append([similarity, filename])
+			for track in artistsindb[artistname]:
+				tracks.append([similarity, track])
 	return tracks
 
 def getsimilarartists(inputartist, verbosity, limit=200): # {{{1
 	"""
-	Get a list of lists with similar artists from Last.fm. Each list contains a
-	numeric similarity (between 0 and 100) followed by an artist name. The
-	artists are sorted by decreasing similarity.
+	Find artists similar to the given artist on Last.fm. The result is a list
+	of lists, where each list contains a numeric similarity between 0 and 100
+	where 100 is most similar, followed by an artist name. The artists are
+	sorted by decreasing similarity.
 	"""
 	address = 'http://ws.audioscrobbler.com/2.0/artist/%s/similar.txt?limit=%i'
-	inputartistsimple = simplifyname(inputartist)
-	handle = urllib.urlopen(address % (urllib.quote(inputartistsimple), limit))
+	handle = urllib.urlopen(address % (urllib.quote(simplifyname(inputartist)), limit))
 	lines = handle.read().split("\n")
 	handle.close()
 	similarartists = []
 	for record in [line.split(",") for line in lines]:
 		if len(record) == 3:
-			simplename = simplifyname(record[2])
-			if simplename != '' and simplename != inputartistsimple:
+			if not simplecompare(record[2], inputartist):
 				similarity = float(record[0])
-				similarartists.append([similarity, simplename])
+				similarartists.append([similarity, simplifyname(record[2])])
 	if verbosity >= 2:
 		print 'Fetched %i artists similar to %s from Last.fm' \
 				% (len(similarartists), inputartist)
 	similarartists.sort(None, None, True)
 	return similarartists
+
+def findlovedtracks(username): # {{{1
+	"""
+	Find the loved tracks of the given user on Last.fm. The result is a list of
+	tuples, where each tuple contains an artist name and a track title.
+	"""
+	tracks = []
+	address = 'http://www.last.fm/user/%s/library/loved?page=%i'
+	regex = '<td[^>]*class="subjectCell"[^>]*>\s*<a[^>]*>(.*?)</a>\s+–\s+<a[^>]*>(.*?)</a>\s*</td>'
+	pagenr = 1
+	lastpage = None
+	while pagenr == 1 and lastpage == None or pagenr <= lastpage:
+		handle = urllib.urlopen(address % (username, pagenr))
+		source = handle.read()
+		handle.close()
+		for (artist, track) in re.findall(regex, source, re.IGNORECASE):
+			artist = htmlentitydecode(artist)
+			track = htmlentitydecode(track)
+			tracks.append((artist, track))
+		if pagenr == 1 and lastpage == None:
+			match = re.search('<a\s.*?class="lastpage">(\d+)</a>', source, re.IGNORECASE)
+			lastpage = match and int(match.group(1)) or 1
+		pagenr += 1
+	return tracks
+
+def marklovedtracks(similartracks, lovedtracks, verbosity): # {{{1
+	"""
+	Go through the similar tracks and increase the weights of favorite tracks
+	and artists.
+	"""
+	# XXX There's a bug in here but I'm not quite sure how to solve it yet :\
+	nlovedartists = 0
+	nlovedtracks = 0
+	for [artist, title] in lovedtracks:
+		for record in similartracks:
+			if record[1].has_key('artist') and simplecompare(artist, record[1]['artist']):
+				if record[1].has_key('title') and simplecompare(title, record[1]['title']):
+					record[0] += 25
+					nlovedtracks += 1
+				else:
+					record[0] += 10
+					nlovedartists += 1
+	if verbosity >= 3:
+		if nlovedtracks > 0: print 'Marked', nlovedtracks, 'loved tracks from Last.fm'
+		if nlovedartists > 0: print 'Marked', nlovedartists, 'loved artists from Last.fm'
+
+def htmlentitydecode(string): # {{{2
+	regex = re.compile("&(#?)(\d{1,5}|\w{1,8});")
+	return regex.subn(htmlentitydecode_helper, string)[0]
+
+def htmlentitydecode_helper(match): # {{{3
+	ent = match.group(2)
+	if match.group(1) == "#":
+		return unichr(int(ent))
+	else:
+		cp = htmlentitydefs.name2codepoint.get(ent)
+		return cp and unichr(cp) or match.group()
 
 def connect(client, hostname, portnr, passwd): # {{{1
 	try:
@@ -229,9 +305,11 @@ def usage(): # {{{1
 	print '  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)'
 	print '  -p, --port=PORTNR            port number on which MPD is listening (6600)'
 	print '  -P, --pass=PASSWORD          password for connecting with MPD (empty)'
-	print '  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)'
 	print '  -u, --update=SECONDS         seconds between updates to the playlist (5)'
+	print '  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)'
+	print '  -R, --repeat=COUNT           number of last played tracks not to repeat (20)'
 	print '  -s, --songs=COUNT            number of tracks before end of playlist to start adding songs (3)'
+	print '  -l, --love=USERNAME          play tracks loved by user on Last.fm more frequently'
 	print '  -h, --help                   show this help'
 
 # }}}1
