@@ -178,8 +178,9 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 	using the -s or --songs command-line argument.
 	"""
 	trackstofilter = client.playlist()
-	if len(trackstofilter) > repeatfactor:
-		trackstofilter = trackstofilter[-repeatfactor]
+	if len(trackstofilter) < repeatfactor:
+		repeatfactor = len(trackstofilter)
+	trackstofilter = trackstofilter[-repeatfactor]
 	return [t for t in tracks if not t[1]['file'] in trackstofilter]
 
 def simplifyname(string): # {{{1
