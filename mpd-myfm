@@ -16,8 +16,8 @@ def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'verbose', 'help'])
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:Avh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'verbose', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
@@ -31,6 +31,7 @@ def main(): # {{{1
 	updatetime = 5
 	reconnecttime = 60
 	repeatfactor = 20
+	album = False
 	verbosity = 0
 	lastfmaccountforlovedtracks = ''
 
@@ -44,6 +45,7 @@ def main(): # {{{1
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
 		elif option in ('-l', '--love'): lastfmaccountforlovedtracks = argument
+		elif option in ('-A', '--album'): album = True
 		elif option in ('-v', '--verbose'): verbosity += 1
 		elif option in ('-h', '--help'):
 			usage()
@@ -53,6 +55,7 @@ def main(): # {{{1
 			usage()
 			sys.exit(1)
 
+	global client
 	client = mpd.MPDClient()
 	if not connect(client, hostname, portnr, passwd):
 		print "Failed to connect to MPD server at `%s' on port `%i'" % (hostname, portnr)
@@ -70,22 +73,11 @@ def main(): # {{{1
 				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
-					similartracks = findsimilartracks(index, similarartists)
-					similartracks = filterduplicates(client, repeatfactor, similartracks)
-					if len(similartracks) <= 3: # TODO Make treshold configurable?
-						if lasttrack.has_key('genre'):
-							for track in index.findtracksingenre(lasttrack['genre']):
-								similartracks.append([0.1, track])
-							similartracks = filterduplicates(client, repeatfactor, similartracks)
-					if len(similartracks) >= 1:
-						# TODO Add more weight to loved tracks
-						marklovedtracks(similartracks, lovedtracks, verbosity)
-						tracktoadd = weightedrandomchoice(similartracks)
-						client.add(tracktoadd['file'])
-						if verbosity >= 1:
-							print 'Added', tracktoadd['file'], 'to playlist.'
-					elif verbosity >= 1:
-						print 'Failed to find similar track based on artist nor genre!'
+					if album == True:
+						addalbum(index, similarartists)
+					else:
+						addtrack(index, similarartists, lovedtracks)
+				
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
@@ -103,6 +95,55 @@ def main(): # {{{1
 				client.disconnect()
 				break
 
+def addtrack(index, similarartists, lovedtracks):
+	global client
+	similartracks = findsimilartracks(index, similarartists)
+	similartracks = filterduplicates(client, repeatfactor, similartracks)
+	if len(similartracks) <= 3: # TODO Make treshold configurable?
+		if lasttrack.has_key('genre'):
+			for track in index.findtracksingenre(lasttrack['genre']):
+				similartracks.append([0.1, track])
+			similartracks = filterduplicates(client, repeatfactor, similartracks)
+	if len(similartracks) >= 1:
+		# TODO Add more weight to loved tracks
+		marklovedtracks(similartracks, lovedtracks, verbosity)
+		tracktoadd = weightedrandomchoice(similartracks)
+		client.add(tracktoadd['file'])
+		if verbosity >= 1:
+			print 'Added', tracktoadd['file'], 'to playlist.'
+	elif verbosity >= 1:
+		print 'Failed to find similar track based on artist nor genre!'
+
+
+def addalbum(index, similarartists):
+	global client
+	similaralbums = findsimilaralbums(index, similarartists)
+	if len(similaralbums) <= 1:
+		if verbosity >= 1:
+			print 'Could not find any albums from similar artists, trying one lose track now.'
+			print 'I will try an album again after that.'
+		addtrack(similarartists)
+	albumtoadd = weightedrandomchoice(similaralbums)
+	trackstoload = index.findtracksbyalbum(albumtoadd)
+#	print trackstoload
+	for track in trackstoload:
+		print track['file']
+		client.add(track['file'])
+
+
+def findsimilaralbums(index, similarartists):
+	"""
+	Return a list of albums in the Music Player Daemon library from any of the
+	given artists. The numeric similarity associated with each artist is copied
+	to all albums by that artist.
+	"""
+	albums = []
+	for [similarity, artistname] in similarartists:
+		for album in index.findalbumsbyartist(artistname):
+				albums.append([similarity, album])
+	print 'findsimilaralbums:', albums
+	return albums
+	
 def unique(list): # {{{2
     result = []
     for item in list:
@@ -289,6 +330,7 @@ def usage(): # {{{1
 	print '  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)'
 	print '  -R, --repeat=COUNT           number of last played tracks not to repeat (20)'
 	print '  -s, --songs=COUNT            number of tracks before end of playlist to start adding songs (3)'
+	print '  -A, --album                  Add whole albums instead of just one track.'
 	print '  -l, --love=USERNAME          play tracks loved by user on Last.fm more frequently'
 	print '  -h, --help                   show this help'
 
@@ -297,11 +339,23 @@ class LibraryIndex: # {{{1
 	def __init__(self, mpdclient): # {{{2
 		self.__artists = {}
 		self.__genres = {}
-		for track in mpdclient.listallinfo():
+		self.__albumtracks = {}
+		self.__albums = {}
+		self.__database = mpdclient.listallinfo()
+		for track in self.__database:
 			self.__addtoindex('artist', track, self.__artists)
 			self.__addtoindex('genre', track, self.__genres)
+			self.__addtoindex('album', track, self.__albumtracks)
+		for track in self.__database:
+			if track.has_key('album'):
+				value = track['album']
+				key = simplifyname(track['artist'])
+				if not self.__albums.has_key(key):
+					self.__albums[key] = []
+				self.__albums[key].append(track['album'])
+		self.__database = None
 
-	def __addtoindex(self, field, track, index): # {{{2
+	def __addtoindex(self, field, track, index,): # {{{2
 		if field in track:
 			values = track[field]
 			# track['genre'] can be a list of genres..
@@ -325,6 +379,20 @@ class LibraryIndex: # {{{1
 		if self.__genres.has_key(simplename):
 			return self.__genres[simplename]
 		return []
+
+	def findalbumsbyartist(self, artistname):
+		key = simplifyname(artistname)
+		if self.__albums.has_key(key):
+			return self.__albums[key]
+		return []
+
+	def findtracksbyalbum(self, albumname): # {{{2
+		simplename = simplifyname(albumname)
+		if self.__albumtracks.has_key(simplename):
+			return self.__albumtracks[simplename]
+		return []
+		# Find all the tracks of an album.
+		pass 
 
 # }}}1
 
