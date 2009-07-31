@@ -73,10 +73,11 @@ def main(): # {{{1
 				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
+					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if album == True:
-						addalbum(index, similarartists)
+						addalbum(index, similarartists, verbosity)
 					else:
-						addtrack(index, similarartists, lovedtracks)
+						addtrack(index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
 				
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
@@ -95,7 +96,8 @@ def main(): # {{{1
 				client.disconnect()
 				break
 
-def addtrack(index, similarartists, lovedtracks):
+def addtrack(index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
+
 	global client
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
@@ -115,7 +117,8 @@ def addtrack(index, similarartists, lovedtracks):
 		print 'Failed to find similar track based on artist nor genre!'
 
 
-def addalbum(index, similarartists):
+def addalbum(index, similarartists, verbosity): # {{{2
+
 	global client
 	similaralbums = findsimilaralbums(index, similarartists)
 	if len(similaralbums) <= 1:
@@ -125,13 +128,13 @@ def addalbum(index, similarartists):
 		addtrack(similarartists)
 	albumtoadd = weightedrandomchoice(similaralbums)
 	trackstoload = index.findtracksbyalbum(albumtoadd)
-#	print trackstoload
 	for track in trackstoload:
 		print track['file']
 		client.add(track['file'])
 
 
-def findsimilaralbums(index, similarartists):
+def findsimilaralbums(index, similarartists): # {{{2
+
 	"""
 	Return a list of albums in the Music Player Daemon library from any of the
 	given artists. The numeric similarity associated with each artist is copied
@@ -180,25 +183,43 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 	trackstofilter = client.playlist()
 	if len(trackstofilter) < repeatfactor:
 		repeatfactor = len(trackstofilter)
-	trackstofilter = trackstofilter[-repeatfactor]
+	trackstofilter = trackstofilter[-repeatfactor : -1]
 	return [t for t in tracks if not t[1]['file'] in trackstofilter]
 
+def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
+	trackstofilter = client.playlistinfo()
+	if len(trackstofilter) < repeatfactor:
+		repeatfactor = len(trackstofilter)
+	trackstofilter = trackstofilter[-repeatfactor : -1]
+	artiststofilter = []
+	for track in trackstofilter:
+		artiststofilter.append(track['artist'])
+#	print artiststofilter
+	demotedlist = []
+	for artist in similarartists:
+#		print artist, artist[1]
+		if artist[1] in artiststofilter:
+			print 'demoting artist!!!'
+			artist[0] = artist[0] / 3 
+			demotedlist.append(artist)
+	return demotedlist
+			
 def simplifyname(string): # {{{1
-	"""
-	Simplify artist names for fuzzy matching.
-	"""
-	global _cachednames
-	if _cachednames.has_key(string):
-		return _cachednames[string]
-	else:
-		result = string.lower()
-		result = re.sub('^the\s+', '', result)
-		result = re.sub(',\s+the$', '', result)
-		result = re.sub('[^a-z0-9 -]', '', result)
-		result = re.sub('\s+', ' ', result)
-		_cachednames[string] = result
-		return result
-
+		"""
+		Simplify artist names for fuzzy matching.
+		"""
+		global _cachednames
+		if _cachednames.has_key(string):
+			return _cachednames[string]
+		else:
+			result = string.lower()
+			result = re.sub('^the\s+', '', result)
+			result = re.sub(',\s+the$', '', result)
+			result = re.sub('[^a-z0-9 -]', '', result)
+			result = re.sub('\s+', ' ', result)
+			_cachednames[string] = result
+			return result
+ 
 _cachednames = {}
 
 def simplecompare(left, right): # {{{1
@@ -381,7 +402,7 @@ class LibraryIndex: # {{{1
 			return self.__genres[simplename]
 		return []
 
-	def findalbumsbyartist(self, artistname):
+	def findalbumsbyartist(self, artistname): # {{{2
 		key = simplifyname(artistname)
 		if self.__albums.has_key(key):
 			return self.__albums[key]
