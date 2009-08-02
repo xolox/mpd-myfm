@@ -165,11 +165,15 @@ def weightedrandomchoice(items): # {{{1
 	total = 0
 	for item in items:
 		total += item[0]
-	threshold = random.random() * total
+	print 'total:', total
+	threshold = random.triangular(0.6, 1, 0.9) * total 
+	print 'threshold:', threshold
 	items.sort()
 	for item in items:
+	#	print item[0]
 		threshold -= item[0]
 		if threshold <= 0:
+			print 'artist similarity chosen:', item[0]
 			return item[1]
 
 def filterduplicates(client, repeatfactor, tracks): # {{{1
@@ -194,16 +198,13 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 	if len(trackstofilter) < repeatfactor:
 		repeatfactor = len(trackstofilter)
 	trackstofilter = trackstofilter[-repeatfactor : -1]
-	print len(trackstofilter), trackstofilter[0]
 	artiststofilter = []
 	for track in trackstofilter:
 		artiststofilter.append(simplifyname(track['artist']))
 	demotedlist = []
 	for artist in similarartists:
 		if artist[1] in artiststofilter:
-			print 'demoting artist!!!', artist
 			artist[0] = artist[0] / 3 
-			print 'demoted index', artist
 			demotedlist.append(artist)
 		else:
 			demotedlist.append(artist)
