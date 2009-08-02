@@ -63,7 +63,6 @@ def main(): # {{{1
 	if pidfile != '':
 		open(pidfile,'w').write(str(os.getpid()))
 
-	global client
 	client = mpd.MPDClient()
 	if not connect(client, hostname, portnr, passwd):
 		print "Failed to connect to MPD server at `%s' on port `%i'" % (hostname, portnr)
@@ -106,7 +105,6 @@ def main(): # {{{1
 				if pidfile != '':
 					os.remove(pidfile)
 				break
-
 
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
 	similartracks = findsimilartracks(index, similarartists)
