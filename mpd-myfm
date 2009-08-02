@@ -334,19 +334,18 @@ class LibraryIndex: # {{{1
 		self.__genres = {}
 		self.__albumtracks = {}
 		self.__albums = {}
-		self.__database = mpdclient.listallinfo()
-		for track in self.__database:
+		library = mpdclient.listallinfo()
+		for track in library:
 			self.__addtoindex('artist', track, self.__artists)
 			self.__addtoindex('genre', track, self.__genres)
 			self.__addtoindex('album', track, self.__albumtracks)
-		for track in self.__database:
+		for track in library:
 			if track.has_key('album'):
 				value = track['album']
 				key = simplifyname(track['artist'])
 				if not self.__albums.has_key(key):
 					self.__albums[key] = []
 				self.__albums[key].append(track['album'])
-		self.__database = None
 
 	def __addtoindex(self, field, track, index,): # {{{2
 		if field in track:
