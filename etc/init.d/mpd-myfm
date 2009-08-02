@@ -1,0 +1,55 @@
+#! /bin/sh -e
+### BEGIN INIT INFO
+# Provides:          mpd-myfm
+# Required-Start:    mpd
+# Required-Stop:     mpd
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start the mpd-myfm mpd-client as a daemon.
+# Description:       Make mpd (music player daemon) into your own
+#                    personalised radio station.
+### END INIT INFO
+
+PIDFILE="/var/run/mpd-myfm.pid"
+
+# Include mpd-myfm defaults if available
+OPTIONS=""
+if [ -f "/etc/default/mpd-myfm" ] ; then
+	. /etc/default/mpd-myfm
+fi
+
+# Get lsb functions
+. /lib/lsb/init-functions
+. /etc/default/rcS
+
+case "$1" in
+  start)
+    log_begin_msg "Starting mpd-myfm services..."
+		touch $PIDFILE && chown mpd $PIDFILE
+    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup -b --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
+		log_end_msg $?
+    ;;
+  stop)
+    log_begin_msg "Stopping mpd-myfm services..."
+    start-stop-daemon --stop --pidfile $PIDFILE --retry 4
+    log_end_msg $?
+    ;;
+  restart)
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+  reload|force-reload) 
+    $0 stop
+    sleep 1
+    $0 start
+    ;;
+  status)
+    status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
+    ;;
+  *)
+    log_success_msg "Usage: /etc/inin.d/mpd-myfm {start|stop|restart|reload|force-reload|status}"
+    exit 1
+esac
+
+exit 0

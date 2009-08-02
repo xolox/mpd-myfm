@@ -1,0 +1,11 @@
+# This is the mpd-myfm config file.
+# this file contains all the commandline options to the
+# mpd-myfm executable.
+HOST=127.0.0.1
+PORT=6600
+PASS=''
+SONGS=3
+INTERVAL=5
+REPEAT=20
+
+OPTIONS="-H $HOST -p $PORT -P $PASS -u $INTERVAL -s $SONGS -R $REPEAT"
