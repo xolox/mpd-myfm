@@ -1,4 +1,3 @@
- * Write an init script so that the client starts automatically after MPD.
  * Select random similar artists instead of tracks, because otherwise the
    number of tracks per artist influences the randomness too much? (of course
    this assumes each artist has several tracks)
