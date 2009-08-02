@@ -103,7 +103,8 @@ def main(): # {{{1
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
-				os.remove(pidfile)
+				if pidfile != '':
+					os.remove(pidfile)
 				break
 
 
