@@ -19,7 +19,7 @@ def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:A:F:vh', \
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:AF:vh', \
 				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'pidfile', 'verbose', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
@@ -34,7 +34,7 @@ def main(): # {{{1
 	updatetime = 5
 	reconnecttime = 60
 	repeatfactor = 20
-	album = False
+	albummode = False
 	verbosity = 0
 	lastfmaccountforlovedtracks = ''
 	pidfile = ''
@@ -49,7 +49,7 @@ def main(): # {{{1
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
 		elif option in ('-l', '--love'): lastfmaccountforlovedtracks = argument
-		elif option in ('-A', '--album'): album = True
+		elif option in ('-A', '--album'): albummode = True
 		elif option in ('-F', '--pidfile'): pidfile = argument
 		elif option in ('-v', '--verbose'): verbosity += 1
 		elif option in ('-h', '--help'):
@@ -81,12 +81,8 @@ def main(): # {{{1
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
-					if album == True:
-						if not addalbum(client, index, similarartists, verbosity):
-							addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
-					else:
+					if not albummode or not addalbum(client, index, similarartists, verbosity):
 						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
-				
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
@@ -132,9 +128,11 @@ def addalbum(client, index, similarartists, verbosity): # {{{2
 			print 'I will try an album again after that.'
 		return False
 	albumtoadd = weightedrandomchoice(similaralbums)
-	trackstoload = index.findtracksbyalbum(albumtoadd)
-	print "Adding %i tracks in album `%s'" % (len(trackstoadd), albumtoadd)
-	for track in trackstoload: client.add(track['file'])
+	trackstoload = index.findtracksinalbum(albumtoadd[0], albumtoadd[1])
+	print "Adding %i tracks in album `%s' by artist `%s'" % ( \
+			len(trackstoload), albumtoadd[1], albumtoadd[0])
+	for track in trackstoload:
+		client.add(track['file'])
 	return True
 
 def findsimilaralbums(index, similarartists): # {{{2
@@ -145,9 +143,8 @@ def findsimilaralbums(index, similarartists): # {{{2
 	"""
 	albums = []
 	for [similarity, artistname] in similarartists:
-		for album in index.findalbumsbyartist(artistname):
-				albums.append([similarity, album])
-	print 'findsimilaralbums:', albums
+		for albumname in index.findalbumsbyartist(artistname):
+				albums.append([similarity, [artistname, albumname]])
 	return albums
 	
 def unique(list): # {{{2
@@ -326,24 +323,25 @@ def usage(): # {{{1
 class LibraryIndex: # {{{1
 
 	def __init__(self, mpdclient): # {{{2
-		self.__artists = {}
-		self.__genres = {}
-		self.__albumtracks = {}
-		self.__albums = {}
-		library = mpdclient.listallinfo()
-		for track in library:
-			self.__addtoindex('artist', track, self.__artists)
-			self.__addtoindex('genre', track, self.__genres)
-			self.__addtoindex('album', track, self.__albumtracks)
-		for track in library:
-			if track.has_key('album'):
-				value = track['album']
-				key = simplifyname(track['artist'])
-				if not self.__albums.has_key(key):
-					self.__albums[key] = []
-				self.__albums[key].append(track['album'])
+		self.__tracks_by_artists = {}
+		self.__tracks_in_genres = {}
+		self.__albums_by_artists  = {}
+		self.__tracks_in_albums = {}
+		for track in mpdclient.listallinfo():
+			self.__addtoindex('artist', track, self.__tracks_by_artists)
+			self.__addtoindex('genre', track, self.__tracks_in_genres)
+			if track.has_key('artist') and track.has_key('album'):
+				artistkey = simplifyname(track['artist'])
+				if not self.__albums_by_artists.has_key(artistkey):
+					self.__albums_by_artists[artistkey] = []
+				if track['album'] not in self.__albums_by_artists[artistkey]:
+					self.__albums_by_artists[artistkey].append(track['album'])
+				albumkey = self.__createkey(track['artist'], track['album'])
+				if not self.__tracks_in_albums.has_key(albumkey):
+					self.__tracks_in_albums[albumkey] = []
+				self.__tracks_in_albums[albumkey].append(track)
 
-	def __addtoindex(self, field, track, index,): # {{{2
+	def __addtoindex(self, field, track, index): # {{{2
 		if field in track:
 			values = track[field]
 			# track['genre'] can be a list of genres..
@@ -355,32 +353,35 @@ class LibraryIndex: # {{{1
 					if not index.has_key(key):
 						index[key] = []
 					index[key].append(track)
+	
+	def __createkey(self, artistname, albumname): # {{{2
+		artistkey = simplifyname(artistname)
+		albumkey = simplifyname(artistname)
+		return '%s - %s' % (artistkey, albumkey)
 
 	def findtracksbyartist(self, artistname): # {{{2
-		key = simplifyname(artistname)
-		if self.__artists.has_key(key):
-			return self.__artists[key]
+		artistkey = simplifyname(artistname)
+		if self.__tracks_by_artists.has_key(artistkey):
+			return self.__tracks_by_artists[artistkey]
 		return []
 
 	def findtracksingenre(self, genrename): # {{{2
-		simplename = simplifyname(genrename)
-		if self.__genres.has_key(simplename):
-			return self.__genres[simplename]
+		genrekey = simplifyname(genrename)
+		if self.__tracks_in_genres.has_key(genrekey):
+			return self.__tracks_in_genres[genrekey]
 		return []
 
 	def findalbumsbyartist(self, artistname): # {{{2
-		key = simplifyname(artistname)
-		if self.__albums.has_key(key):
-			return self.__albums[key]
+		artistkey = simplifyname(artistname)
+		if self.__albums_by_artists.has_key(artistkey):
+			return self.__albums_by_artists[artistkey]
 		return []
 
-	def findtracksbyalbum(self, albumname): # {{{2
-		simplename = simplifyname(albumname)
-		if self.__albumtracks.has_key(simplename):
-			return self.__albumtracks[simplename]
+	def findtracksinalbum(self, artistname, albumname): # {{{2
+		albumkey = self.__createkey(artistname, albumname)
+		if self.__tracks_in_albums.has_key(albumkey):
+			return self.__tracks_in_albums[albumkey]
 		return []
-		# Find all the tracks of an album.
-		pass 
 
 # }}}1
 
