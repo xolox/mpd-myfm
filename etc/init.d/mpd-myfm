@@ -24,9 +24,14 @@ fi
 
 case "$1" in
   start)
-    log_begin_msg "Starting mpd-myfm services..."
+	if [ -f $PIDFILE ] ; then
+			log_begin_msg "pidfile exists, mpd-myfm client allready running?"
+			log_end_msg 1
+			exit 0
+		fi
+		log_begin_msg "Starting mpd-myfm services..."
 		touch $PIDFILE && chown mpd $PIDFILE
-    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup -b --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
+    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
 		log_end_msg $?
     ;;
   stop)
