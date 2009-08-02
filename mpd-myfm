@@ -12,12 +12,14 @@ import sys
 import time
 import urllib
 
+
+
 def main(): # {{{1
 
 	# Parse the command-line options.
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:Avh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'verbose', 'help'])
+		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:A:F:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'pidfile', 'verbose', 'help'])
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
@@ -34,6 +36,7 @@ def main(): # {{{1
 	album = False
 	verbosity = 0
 	lastfmaccountforlovedtracks = ''
+	pidfile = ''
 
 	# Process the command-line options.
 	for option, argument in options:
@@ -46,6 +49,7 @@ def main(): # {{{1
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
 		elif option in ('-l', '--love'): lastfmaccountforlovedtracks = argument
 		elif option in ('-A', '--album'): album = True
+		elif option in ('-F', '--pidfile'): pidfile = argument
 		elif option in ('-v', '--verbose'): verbosity += 1
 		elif option in ('-h', '--help'):
 			usage()
@@ -54,6 +58,9 @@ def main(): # {{{1
 			print "Unhandled option `%s'" % (option)
 			usage()
 			sys.exit(1)
+
+	if pidfile != '':
+		open(pidfile,'w').write(str(os.getpid()))
 
 	global client
 	client = mpd.MPDClient()
@@ -95,7 +102,9 @@ def main(): # {{{1
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
+				os.remove(pidfile)
 				break
+
 
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
 	similartracks = findsimilartracks(index, similarartists)
@@ -361,6 +370,7 @@ def usage(): # {{{1
 	print '  -R, --repeat=COUNT           number of last played tracks not to repeat (20)'
 	print '  -s, --songs=COUNT            number of tracks before end of playlist to start adding songs (3)'
 	print '  -A, --album                  Add whole albums instead of just one track.'
+	print '  -F, --pidfile=PIDFILE        Pidfile to use. (use no pidfile if not specified)'
 	print '  -l, --love=USERNAME          play tracks loved by user on Last.fm more frequently'
 	print '  -h, --help                   show this help'
 
