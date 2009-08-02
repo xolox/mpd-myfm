@@ -12,7 +12,8 @@ import sys
 import time
 import urllib
 
-
+# Import local modules.
+import lastfm
 
 def main(): # {{{1
 
@@ -74,12 +75,12 @@ def main(): # {{{1
 		# Get the user's loved tracks from Last.fm?
 		lovedtracks = []
 		if lastfmaccountforlovedtracks != '':
-			lovedtracks = findlovedtracks(lastfmaccountforlovedtracks)
+			lovedtracks = lastfm.get_loved_tracks(lastfmaccountforlovedtracks)
 		while 1:
 			try:
 				if clientenabled(client.status(), songsleft, verbosity):
 					lasttrack = client.playlistinfo()[-1]
-					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
+					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if album == True:
 						if addalbum(client, index, similarartists, verbosity) == False:
@@ -116,7 +117,6 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 				similartracks.append([0.1, track])
 			similartracks = filterduplicates(client, repeatfactor, similartracks)
 	if len(similartracks) >= 1:
-		# TODO Add more weight to loved tracks
 		marklovedtracks(similartracks, lovedtracks, verbosity)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
@@ -268,53 +268,6 @@ def findsimilartracks(index, similarartists): # {{{1
 	for [similarity, artistname] in similarartists:
 		for track in index.findtracksbyartist(artistname):
 			tracks.append([similarity, track])
-	return tracks
-
-def getsimilarartists(inputartist, verbosity, limit=200): # {{{1
-	"""
-	Find artists similar to the given artist on Last.fm. The result is a list
-	of lists, where each list contains a numeric similarity between 0 and 100
-	where 100 is most similar, followed by an artist name. The artists are
-	sorted by decreasing similarity.
-	"""
-	address = 'http://ws.audioscrobbler.com/2.0/artist/%s/similar.txt?limit=%i'
-	handle = urllib.urlopen(address % (urllib.quote(simplifyname(inputartist)), limit))
-	lines = handle.read().split("\n")
-	handle.close()
-	similarartists = []
-	for record in [line.split(",") for line in lines]:
-		if len(record) == 3:
-			if not simplecompare(record[2], inputartist):
-				similarity = float(record[0])
-				similarartists.append([similarity, simplifyname(record[2])])
-	if verbosity >= 2:
-		print 'Fetched %i artists similar to %s from Last.fm' \
-				% (len(similarartists), inputartist)
-	similarartists.sort(None, None, True)
-	return similarartists
-
-def findlovedtracks(username): # {{{1
-	"""
-	Find the loved tracks of the given user on Last.fm. The result is a list of
-	tuples, where each tuple contains an artist name and a track title.
-	"""
-	tracks = []
-	address = 'http://www.last.fm/user/%s/library/loved?page=%i'
-	regex = '<td[^>]*class="subjectCell"[^>]*>\s*<a[^>]*>(.*?)</a>\s+–\s+<a[^>]*>(.*?)</a>\s*</td>'
-	pagenr = 1
-	lastpage = None
-	while pagenr == 1 and lastpage == None or pagenr <= lastpage:
-		handle = urllib.urlopen(address % (username, pagenr))
-		source = handle.read()
-		handle.close()
-		for (artist, track) in re.findall(regex, source, re.IGNORECASE):
-			artist = htmlentitydecode(artist)
-			track = htmlentitydecode(track)
-			tracks.append((artist, track))
-		if pagenr == 1 and lastpage == None:
-			match = re.search('<a\s.*?class="lastpage">(\d+)</a>', source, re.IGNORECASE)
-			lastpage = match and int(match.group(1)) or 1
-		pagenr += 1
 	return tracks
 
 def marklovedtracks(similartracks, lovedtracks, verbosity): # {{{1
