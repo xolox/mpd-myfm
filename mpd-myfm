@@ -356,7 +356,7 @@ class LibraryIndex: # {{{1
 	
 	def __createkey(self, artistname, albumname): # {{{2
 		artistkey = simplifyname(artistname)
-		albumkey = simplifyname(artistname)
+		albumkey = simplifyname(albumname)
 		return '%s - %s' % (artistkey, albumkey)
 
 	def findtracksbyartist(self, artistname): # {{{2
@@ -380,8 +380,19 @@ class LibraryIndex: # {{{1
 	def findtracksinalbum(self, artistname, albumname): # {{{2
 		albumkey = self.__createkey(artistname, albumname)
 		if self.__tracks_in_albums.has_key(albumkey):
-			return self.__tracks_in_albums[albumkey]
+			tracks = self.__tracks_in_albums[albumkey]
+			tracks.sort(self.__sortalbumtracks)
+			return tracks
 		return []
+
+	def __sortalbumtracks(self, x, y):
+		return cmp(self.__gettracknr(x), self.__gettracknr(y))
+
+	def __gettracknr(self, track):
+		if track.has_key('track'):
+			match = re.match('^\d+', track['track'])
+			return int(match.group())
+		return 0
 
 # }}}1
 
