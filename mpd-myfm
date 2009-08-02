@@ -83,7 +83,7 @@ def main(): # {{{1
 					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if album == True:
-						if addalbum(client, index, similarartists, verbosity) == False:
+						if not addalbum(client, index, similarartists, verbosity):
 							addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
 					else:
 						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
