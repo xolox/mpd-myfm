@@ -75,9 +75,10 @@ def main(): # {{{1
 					similarartists = getsimilarartists(lasttrack['artist'], verbosity)
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if album == True:
-						addalbum(index, similarartists, verbosity)
+						if addalbum(client, index, similarartists, verbosity) == False:
+							addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
 					else:
-						addtrack(index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
+						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
 				
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
@@ -96,12 +97,11 @@ def main(): # {{{1
 				client.disconnect()
 				break
 
-def addtrack(index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
-
-	global client
+def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
 	if len(similartracks) <= 3: # TODO Make treshold configurable?
+		print 'Adding track based on genre.'
 		if lasttrack.has_key('genre'):
 			for track in index.findtracksingenre(lasttrack['genre']):
 				similartracks.append([0.1, track])
@@ -116,25 +116,23 @@ def addtrack(index, lasttrack, similarartists, repeatfactor, lovedtracks, verbos
 	elif verbosity >= 1:
 		print 'Failed to find similar track based on artist nor genre!'
 
-
-def addalbum(index, similarartists, verbosity): # {{{2
-
-	global client
+def addalbum(client, index, similarartists, verbosity): # {{{2
+	print similarartists
 	similaralbums = findsimilaralbums(index, similarartists)
+	print similaralbums
 	if len(similaralbums) <= 1:
 		if verbosity >= 1:
 			print 'Could not find any albums from similar artists, trying one lose track now.'
 			print 'I will try an album again after that.'
-		addtrack(similarartists)
+		return False
 	albumtoadd = weightedrandomchoice(similaralbums)
 	trackstoload = index.findtracksbyalbum(albumtoadd)
 	for track in trackstoload:
 		print track['file']
 		client.add(track['file'])
-
+	return True
 
 def findsimilaralbums(index, similarartists): # {{{2
-
 	"""
 	Return a list of albums in the Music Player Daemon library from any of the
 	given artists. The numeric similarity associated with each artist is copied
@@ -187,20 +185,27 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 	return [t for t in tracks if not t[1]['file'] in trackstofilter]
 
 def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
+	"""
+	Make it less likely that a song from an artist who is already in the last
+	'repeatfactor' songs. We do not ban them because that would	make it very 
+	hard to find similar songs after a wile.
+	"""
 	trackstofilter = client.playlistinfo()
 	if len(trackstofilter) < repeatfactor:
 		repeatfactor = len(trackstofilter)
 	trackstofilter = trackstofilter[-repeatfactor : -1]
+	print len(trackstofilter), trackstofilter[0]
 	artiststofilter = []
 	for track in trackstofilter:
-		artiststofilter.append(track['artist'])
-#	print artiststofilter
+		artiststofilter.append(simplifyname(track['artist']))
 	demotedlist = []
 	for artist in similarartists:
-#		print artist, artist[1]
 		if artist[1] in artiststofilter:
-			print 'demoting artist!!!'
+			print 'demoting artist!!!', artist
 			artist[0] = artist[0] / 3 
+			print 'demoted index', artist
+			demotedlist.append(artist)
+		else:
 			demotedlist.append(artist)
 	return demotedlist
 			
