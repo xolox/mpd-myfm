@@ -23,33 +23,33 @@ fi
 . /etc/default/rcS
 
 case "$1" in
-  start)
-    log_begin_msg "Starting mpd-myfm services..."
+	start)
+		log_begin_msg "Starting mpd-myfm services..."
 		touch $PIDFILE && chown mpd $PIDFILE
-    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup -b --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
+		start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup -b --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
 		log_end_msg $?
-    ;;
-  stop)
-    log_begin_msg "Stopping mpd-myfm services..."
-    start-stop-daemon --stop --pidfile $PIDFILE --retry 4
-    log_end_msg $?
-    ;;
-  restart)
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-  reload|force-reload) 
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-  status)
-    status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
-    ;;
-  *)
-    log_success_msg "Usage: /etc/inin.d/mpd-myfm {start|stop|restart|reload|force-reload|status}"
-    exit 1
+		;;
+	stop)
+		log_begin_msg "Stopping mpd-myfm services..."
+		start-stop-daemon --stop --pidfile $PIDFILE --retry 4
+		log_end_msg $?
+		;;
+	restart)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	reload|force-reload)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	status)
+		status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
+		;;
+	*)
+		log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload|status}"
+		exit 1
 esac
 
 exit 0
