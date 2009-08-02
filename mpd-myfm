@@ -125,9 +125,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 		print 'Failed to find similar track based on artist nor genre!'
 
 def addalbum(client, index, similarartists, verbosity): # {{{2
-	print similarartists
 	similaralbums = findsimilaralbums(index, similarartists)
-	print similaralbums
 	if len(similaralbums) <= 1:
 		if verbosity >= 1:
 			print 'Could not find any albums from similar artists, trying one lose track now.'
@@ -135,9 +133,8 @@ def addalbum(client, index, similarartists, verbosity): # {{{2
 		return False
 	albumtoadd = weightedrandomchoice(similaralbums)
 	trackstoload = index.findtracksbyalbum(albumtoadd)
-	for track in trackstoload:
-		print track['file']
-		client.add(track['file'])
+	print "Adding %i tracks in album `%s'" % (len(trackstoadd), albumtoadd)
+	for track in trackstoload: client.add(track['file'])
 	return True
 
 def findsimilaralbums(index, similarartists): # {{{2
