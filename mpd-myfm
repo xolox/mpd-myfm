@@ -16,16 +16,6 @@ import lastfm
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
-def doargs(args): # {{{1
-	try:
-		options, arguments = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'pidfile', 'verbose', 'help'])
-		return options
-	except getopt.GetoptError, err:
-		print str(err)
-		usage()
-		sys.exit(1)
-
 def main(): # {{{1
 
 	options = []
@@ -123,7 +113,7 @@ def main(): # {{{1
 					os.remove(pidfile)
 				break
 
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity): # {{{2
+def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity): # {{{1
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
 	removebannedtracks(bannedtracks, similartracks, verbosity)
@@ -143,7 +133,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 	elif verbosity >= 1:
 		print 'Failed to find similar track based on artist nor genre!'
 
-def addalbum(client, index, similarartists, verbosity): # {{{2
+def addalbum(client, index, similarartists, verbosity): # {{{1
 	similaralbums = findsimilaralbums(index, similarartists)
 	if len(similaralbums) <= 1:
 		if verbosity >= 1:
@@ -158,7 +148,7 @@ def addalbum(client, index, similarartists, verbosity): # {{{2
 		client.add(track['file'])
 	return True
 
-def findsimilaralbums(index, similarartists): # {{{2
+def findsimilaralbums(index, similarartists): # {{{1
 	"""
 	Return a list of albums in the Music Player Daemon library from any of the
 	given artists. The numeric similarity associated with each artist is copied
@@ -169,37 +159,6 @@ def findsimilaralbums(index, similarartists): # {{{2
 		for albumname in index.findalbumsbyartist(artistname):
 				albums.append([similarity, [artistname, albumname]])
 	return albums
-	
-def unique(list): # {{{2
-    result = []
-    for item in list:
-        if item not in result:
-            result.append(item)
-    return result
-
-def sleep(seconds, verbosity): # {{{2
-	if verbosity >= 2:
-		print 'Sleeping for', seconds, 'seconds'
-	time.sleep(seconds)
-
-def weightedrandomchoice(items): # {{{1
-	"""
-	Pick a weighted random value from a list of lists, where each list contains
-	a numeric weight followed by any type of associated value.
-	"""
-	total = 0
-	for item in items:
-		total += item[0]
-#	print 'total:', total
-	threshold = random.uniform(0.6, 1) * total 
-#	print 'threshold:', threshold
-	items.sort()
-	for item in items:
-	#	print item[0]
-		threshold -= item[0]
-		if threshold <= 0:
-#			print 'artist similarity chosen:', item[0]
-			return item[1]
 
 def filterduplicates(client, repeatfactor, tracks): # {{{1
 	"""
@@ -236,30 +195,6 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 		else:
 			demotedlist.append(artist)
 	return demotedlist
-
-def createkey(*args): # {{{1
-	return '-'.join(map(simplifyname, args))
-
-def simplifyname(string): # {{{1
-	"""
-	Simplify artist names for fuzzy matching.
-	"""
-	global _cachednames
-	if _cachednames.has_key(string):
-		return _cachednames[string]
-	else:
-		result = string.lower()
-		result = re.sub('^the\s+', '', result)
-		result = re.sub(',\s+the$', '', result)
-		result = re.sub('[^a-z0-9 -]', '', result)
-		result = re.sub('\s+', ' ', result)
-		_cachednames[string] = result
-		return result
- 
-_cachednames = {}
-
-def simplecompare(left, right): # {{{1
-	return simplifyname(left) == simplifyname(right)
 
 def clientenabled(status, songsleft, verbosity): # {{{1
 	if int(status['playlistlength']) == 0:
@@ -327,7 +262,89 @@ def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
 	if verbosity >= 3 and nbannedtracks > 0:
 		print 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
 
-def connect(client, hostname, portnr, passwd): # {{{1
+def usage(): # {{{1
+	print 'Usage: %s [OPTION]...' % (os.path.split(sys.argv[0])[1])
+	print """
+  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)
+  -p, --port=PORTNR            port number on which MPD is listening (6600)
+  -P, --pass=PASSWORD          password for connecting with MPD (none)
+  -u, --update=SECONDS         seconds between updates to the playlist (5)
+  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)
+  -R, --repeat=COUNT           number of last played tracks not to repeat (20)
+  -s, --songs=COUNT            number of tracks before end of playlist to start
+                               adding songs (3)
+  -a, --artist                 select random artists instead of tracks, so that
+                               the number of tracks by each artist does not
+                               influence the random selection
+  -A, --album                  add whole albums instead of just one track.
+  -F, --pidfile=FILENAME       process identifier file to use (none)
+  -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
+                               frequently and don't play banned tracks
+  -h, --help                   show this help
+"""
+
+# Miscellaneous functions. {{{1
+
+def createkey(*args): # {{{2
+	"""
+	Simplify a list of strings (one or more of artist name, album name, track
+	title) into a single string using the simplifyname() function.
+	"""
+	return '-'.join(map(simplifyname, args))
+
+def simplifyname(string): # {{{2
+	"""
+	Simplify artist names for fuzzy matching.
+	"""
+	global _cachednames
+	if _cachednames.has_key(string):
+		return _cachednames[string]
+	else:
+		result = string.lower()
+		result = re.sub('^the\s+', '', result)
+		result = re.sub(',\s+the$', '', result)
+		result = re.sub('[^a-z0-9 -]', '', result)
+		result = re.sub('\s+', ' ', result)
+		_cachednames[string] = result
+		return result
+ 
+_cachednames = {}
+
+def simplecompare(left, right): # {{{2
+	"""
+	Compare two strings using the simplifyname() function and return True when
+	they are equal.
+	"""
+	return simplifyname(left) == simplifyname(right)
+
+def weightedrandomchoice(items): # {{{2
+	"""
+	Pick a weighted random value from a list of lists, where each list contains
+	a numeric weight followed by any type of associated value.
+	"""
+	total = 0
+	for item in items:
+		total += item[0]
+	threshold = random.uniform(0.6, 1) * total 
+	items.sort()
+	for item in items:
+		threshold -= item[0]
+		if threshold <= 0:
+			return item[1]
+
+def sleep(seconds, verbosity): # {{{2
+	if verbosity >= 2:
+		print 'Sleeping for', seconds, 'seconds'
+	time.sleep(seconds)
+
+def unique(list): # {{{2
+    result = []
+    for item in list:
+        if item not in result:
+            result.append(item)
+    return result
+
+def connect(client, hostname, portnr, passwd): # {{{2
 	try:
 		client.connect(host=hostname, port=portnr)
 		if passwd != '': client.password(passwd)
@@ -335,21 +352,15 @@ def connect(client, hostname, portnr, passwd): # {{{1
 	except socket.error:
 		return False
 
-def usage(): # {{{1
-	scriptname = os.path.split(sys.argv[0])[1]
-	print 'Usage: %s [OPTION]...' % (scriptname)
-	print ''
-	print '  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)'
-	print '  -p, --port=PORTNR            port number on which MPD is listening (6600)'
-	print '  -P, --pass=PASSWORD          password for connecting with MPD (empty)'
-	print '  -u, --update=SECONDS         seconds between updates to the playlist (5)'
-	print '  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)'
-	print '  -R, --repeat=COUNT           number of last played tracks not to repeat (20)'
-	print '  -s, --songs=COUNT            number of tracks before end of playlist to start adding songs (3)'
-	print '  -A, --album                  Add whole albums instead of just one track.'
-	print '  -F, --pidfile=PIDFILE        Pidfile to use. (use no pidfile if not specified)'
-	print '  -l, --love=USERNAME          play tracks loved by user on Last.fm more frequently'
-	print '  -h, --help                   show this help'
+def doargs(args): # {{{2
+	try:
+		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:aAF:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'artist', 'album', 'pidfile', 'verbose', 'help'])
+		return opts
+	except getopt.GetoptError, err:
+		print str(err)
+		usage()
+		sys.exit(1)
 
 class LibraryIndex: # {{{1
 
