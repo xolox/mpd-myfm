@@ -15,18 +15,31 @@ import urllib
 # Import local modules.
 import lastfm
 
-def main(): # {{{1
-
-	# Parse the command-line options.
+def doargs(args): # {{{1
 	try:
-		options, arguments = getopt.getopt(sys.argv[1:], 'H:p:P:r:u:s:R:l:AF:vh', \
+		options, arguments = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AF:vh', \
 				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'love=', 'album', 'pidfile', 'verbose', 'help'])
+		return options
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
 		sys.exit(1)
 
-	# Define command-line option defaults.
+def main(): # {{{1
+
+	options = []
+
+	# Read user's configuration file?
+	configfile = os.path.expanduser('~/.mpd-myfm')
+	if os.path.exists(configfile):
+		handle = open(configfile)
+		options.extend(doargs(handle.read().split('\n')))
+		handle.close()
+
+	# Parse the command-line options.
+	options.extend(doargs(sys.argv[1:]))
+
+	# Define option defaults.
 	hostname = '127.0.0.1'
 	portnr = 6600
 	passwd = ''
@@ -39,7 +52,7 @@ def main(): # {{{1
 	lastfmaccountforlovedtracks = ''
 	pidfile = ''
 
-	# Process the command-line options.
+	# Process command-line options.
 	for option, argument in options:
 		if option in ('-H', '--host'): hostname = argument
 		elif option in ('-p', '--port'): portnr = int(argument)
