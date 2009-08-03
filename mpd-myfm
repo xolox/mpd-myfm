@@ -52,7 +52,7 @@ def main(): # {{{1
 		elif option in ('-u', '--update'): updatetime = int(argument)
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
-		elif option in ('-l', '--love'): lastfmaccountforlovedtracks = argument
+		elif option in ('-l', '--lastfm'): lastfmaccountforlovedtracks = argument
 		elif option in ('-A', '--album'): albummode = True
 		elif option in ('-F', '--pidfile'): pidfile = argument
 		elif option in ('-v', '--verbose'): verbosity += 1
@@ -273,9 +273,6 @@ def usage(): # {{{1
   -R, --repeat=COUNT           number of last played tracks not to repeat (20)
   -s, --songs=COUNT            number of tracks before end of playlist to start
                                adding songs (3)
-  -a, --artist                 select random artists instead of tracks, so that
-                               the number of tracks by each artist does not
-                               influence the random selection
   -A, --album                  add whole albums instead of just one track.
   -F, --pidfile=FILENAME       process identifier file to use (none)
   -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
@@ -354,8 +351,8 @@ def connect(client, hostname, portnr, passwd): # {{{2
 
 def doargs(args): # {{{2
 	try:
-		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:aAF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'artist', 'album', 'pidfile', 'verbose', 'help'])
+		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AF:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'pidfile', 'verbose', 'help'])
 		return opts
 	except getopt.GetoptError, err:
 		print str(err)
