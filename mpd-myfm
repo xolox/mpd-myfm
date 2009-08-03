@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# vim: set fileencoding=utf-8 :
 
 import getopt
 import htmlentitydefs
@@ -86,14 +85,17 @@ def main(): # {{{1
 	else:
 		# Create an index from the user's library.
 		index = LibraryIndex(client)
-		# Get the user's loved tracks from Last.fm?
+		# Get the user's loved & banned tracks from Last.fm?
 		lovedtracks = []
 		lovedartists = []
+		bannedtracks = []
 		if lastfmaccountforlovedtracks != '':
-			lovedtracks = lastfm.get_loved_tracks(lastfmaccountforlovedtracks)
-			for [artist, title] in lovedtracks:
+			for [artist, title] in lastfm.get_loved_tracks(lastfmaccountforlovedtracks):
+				lovedtracks.append(createkey(artist, title))
 				if artist != 'Various Artists' and not artist in lovedartists:
-					lovedartists.append(artist)
+					lovedartists.append(createkey(artist))
+			for [artist, title] in lastfm.get_banned_tracks(lastfmaccountforlovedtracks):
+				bannedtracks.append(createkey(artist, title))
 		while 1:
 			try:
 				if clientenabled(client.status(), songsleft, verbosity):
@@ -101,7 +103,7 @@ def main(): # {{{1
 					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if not albummode or not addalbum(client, index, similarartists, verbosity):
-						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, verbosity)
+						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity)
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
@@ -121,15 +123,17 @@ def main(): # {{{1
 					os.remove(pidfile)
 				break
 
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, verbosity): # {{{2
+def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity): # {{{2
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
+	removebannedtracks(bannedtracks, similartracks, verbosity)
 	if len(similartracks) <= 3: # TODO Make treshold configurable?
 		print 'Adding track based on genre.'
 		if lasttrack.has_key('genre'):
 			for track in index.findtracksingenre(lasttrack['genre']):
 				similartracks.append([0.1, track])
 			similartracks = filterduplicates(client, repeatfactor, similartracks)
+			removebannedtracks(bannedtracks, similartracks, verbosity)
 	if len(similartracks) >= 1:
 		marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity)
 		tracktoadd = weightedrandomchoice(similartracks)
@@ -305,6 +309,23 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
 	if verbosity >= 3:
 		if nlovedtracks > 0: print 'Marked', nlovedtracks, 'loved tracks from Last.fm'
 		if nlovedartists > 0: print 'Marked', nlovedartists, 'loved artists from Last.fm'
+
+def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
+	"""
+	Go through the similar tracks and remove all banned tracks.
+	"""
+	nbannedtracks = 0
+	index = 0
+	while index < len(similartracks):
+		weight, track = similartracks[index]
+		if track.has_key('artist') and track.has_key('title') and \
+				createkey(track['artist'], track['title']) in bannedtracks:
+			del similartracks[index]
+			nbannedtracks += 1
+		else:
+			index += 1
+	if verbosity >= 3 and nbannedtracks > 0:
+		print 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
 
 def connect(client, hostname, portnr, passwd): # {{{1
 	try:
