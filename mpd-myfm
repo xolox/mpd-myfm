@@ -92,7 +92,6 @@ def main(): # {{{1
 		if lastfmaccountforlovedtracks != '':
 			lovedtracks = lastfm.get_loved_tracks(lastfmaccountforlovedtracks)
 			for [artist, title] in lovedtracks:
-				artist = artist.decode('utf-8')
 				if artist != 'Various Artists' and not artist in lovedartists:
 					lovedartists.append(artist)
 		while 1:

@@ -60,7 +60,7 @@ def get_similar_artists(artist, limit=100): # {{{1
 		artist_key = __normalize_name(artist)
 		param = urllib.quote(artist_key != '' and artist_key or artist)
 		handle = urllib.urlopen(address % (param, limit))
-		lines = handle.read().split("\n")
+		lines = handle.read().decode('utf-8').split('\n')
 		handle.close()
 		for record in [line.split(",") for line in lines]:
 			if len(record) == 3:
@@ -127,7 +127,7 @@ def __get_tracks(username, type): # {{{1
 			sys.stderr.write('\rDownloading page %i of %s with %s tracks' % ( \
 					pagenr, lastpage == None and '?' or str(lastpage), type))
 		handle = urllib.urlopen(address % (username, type, pagenr))
-		source = handle.read()
+		source = handle.read().decode('utf-8')
 		handle.close()
 		for (artist, track) in re.findall(regex, source, re.IGNORECASE):
 			artist = __htmlentitydecode(artist)
