@@ -233,11 +233,11 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
 	nlovedartists = 0
 	for record in similartracks:
 		similarity, track = record
-		if track.has_key('artist') and track.has_key('title') and \
+		if track.get('artist', '') != '' and track.get('title', '') != '' and \
 				createkey(track['artist'], track['title']) in lovedtracks:
 			record[0] += 25
 			nlovedtracks += 1
-		elif track.has_key('artist') and \
+		elif track.get('artist', '') != '' and \
 				createkey(track['artist']) in lovedartists:
 			record[0] += 10
 			nlovedartists += 1
@@ -253,7 +253,7 @@ def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
 	index = 0
 	while index < len(similartracks):
 		weight, track = similartracks[index]
-		if track.has_key('artist') and track.has_key('title') and \
+		if track.get('artist', '') != '' and track.get('title', '') != '' and \
 				createkey(track['artist'], track['title']) in bannedtracks:
 			del similartracks[index]
 			nbannedtracks += 1
@@ -372,7 +372,7 @@ class LibraryIndex: # {{{1
 		for track in mpdclient.listallinfo():
 			self.__addtoindex('artist', track, self.__tracks_by_artists)
 			self.__addtoindex('genre', track, self.__tracks_in_genres)
-			if track.has_key('artist') and track.has_key('album'):
+			if track.get('artist', '') != '' and track.get('album', '') != '':
 				artistkey = simplifyname(track['artist'])
 				if not self.__albums_by_artists.has_key(artistkey):
 					self.__albums_by_artists[artistkey] = []
@@ -398,35 +398,27 @@ class LibraryIndex: # {{{1
 	
 	def findtracksbyartist(self, artistname): # {{{2
 		artistkey = simplifyname(artistname)
-		if self.__tracks_by_artists.has_key(artistkey):
-			return self.__tracks_by_artists[artistkey]
-		return []
+		return self.__tracks_by_artists.get(artistkey, [])
 
 	def findtracksingenre(self, genrename): # {{{2
 		genrekey = simplifyname(genrename)
-		if self.__tracks_in_genres.has_key(genrekey):
-			return self.__tracks_in_genres[genrekey]
-		return []
+		return self.__tracks_in_genres.get(genrekey, [])
 
 	def findalbumsbyartist(self, artistname): # {{{2
 		artistkey = simplifyname(artistname)
-		if self.__albums_by_artists.has_key(artistkey):
-			return self.__albums_by_artists[artistkey]
-		return []
+		return self.__albums_by_artists.get(artistkey, [])
 
 	def findtracksinalbum(self, artistname, albumname): # {{{2
 		albumkey = createkey(artistname, albumname)
-		if self.__tracks_in_albums.has_key(albumkey):
-			tracks = self.__tracks_in_albums[albumkey]
-			tracks.sort(self.__sortalbumtracks)
-			return tracks
-		return []
+		tracks = self.__tracks_in_albums.get(albumkey, [])
+		tracks.sort(self.__sortalbumtracks)
+		return tracks
 
 	def __sortalbumtracks(self, x, y):
 		return cmp(self.__gettracknr(x), self.__gettracknr(y))
 
 	def __gettracknr(self, track):
-		if track.has_key('track'):
+		if track.get('track', '') != '':
 			match = re.match('^\d+', track['track'])
 			return int(match.group())
 		return 0
