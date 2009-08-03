@@ -127,13 +127,13 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
 	removebannedtracks(bannedtracks, similartracks, verbosity)
-	if len(similartracks) <= 3: # TODO Make treshold configurable?
-		print 'Adding track based on genre.'
-		if lasttrack.has_key('genre'):
-			for track in index.findtracksingenre(lasttrack['genre']):
-				similartracks.append([0.1, track])
-			similartracks = filterduplicates(client, repeatfactor, similartracks)
-			removebannedtracks(bannedtracks, similartracks, verbosity)
+	# TODO Make treshold configurable?
+	if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
+		print "Adding track based on same genre `%s'." % (lasttrack['genre'])
+		for track in index.findtracksingenre(lasttrack['genre']):
+			similartracks.append([1, track])
+		similartracks = filterduplicates(client, repeatfactor, similartracks)
+		removebannedtracks(bannedtracks, similartracks, verbosity)
 	if len(similartracks) >= 1:
 		marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity)
 		tracktoadd = weightedrandomchoice(similartracks)
