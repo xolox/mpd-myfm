@@ -3,3 +3,6 @@
    this assumes each artist has several tracks)
  * Use favorite tracks to fall back on when no similar tracks are found?
  * Cache the similar artists retrieved from Last.fm?
+ * When the last track doesn't have a genre, search the other tracks in the
+   Media Player Daemon library by the same artist for a genre. Optionally also
+   support multiple genres?
