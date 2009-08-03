@@ -73,8 +73,13 @@ def main(): # {{{1
 		index = LibraryIndex(client)
 		# Get the user's loved tracks from Last.fm?
 		lovedtracks = []
+		lovedartists = []
 		if lastfmaccountforlovedtracks != '':
 			lovedtracks = lastfm.get_loved_tracks(lastfmaccountforlovedtracks)
+			for [artist, title] in lovedtracks:
+				artist = artist.decode('utf-8')
+				if artist != 'Various Artists' and not artist in lovedartists:
+					lovedartists.append(artist)
 		while 1:
 			try:
 				if clientenabled(client.status(), songsleft, verbosity):
@@ -82,7 +87,7 @@ def main(): # {{{1
 					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
 					if not albummode or not addalbum(client, index, similarartists, verbosity):
-						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity)
+						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, verbosity)
 				# Sleep for a while before trying to update again.
 				sleep(updatetime, verbosity)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
@@ -102,7 +107,7 @@ def main(): # {{{1
 					os.remove(pidfile)
 				break
 
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, verbosity): # {{{2
+def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, verbosity): # {{{2
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
 	if len(similartracks) <= 3: # TODO Make treshold configurable?
@@ -112,7 +117,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 				similartracks.append([0.1, track])
 			similartracks = filterduplicates(client, repeatfactor, similartracks)
 	if len(similartracks) >= 1:
-		marklovedtracks(similartracks, lovedtracks, verbosity)
+		marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
 		if verbosity >= 1:
@@ -213,7 +218,10 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 		else:
 			demotedlist.append(artist)
 	return demotedlist
-			
+
+def createkey(*args): # {{{1
+	return '-'.join(map(simplifyname, args))
+
 def simplifyname(string): # {{{1
 		"""
 		Simplify artist names for fuzzy matching.
@@ -263,23 +271,23 @@ def findsimilartracks(index, similarartists): # {{{1
 			tracks.append([similarity, track])
 	return tracks
 
-def marklovedtracks(similartracks, lovedtracks, verbosity): # {{{1
+def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
 	"""
 	Go through the similar tracks and increase the weights of favorite tracks
 	and artists.
 	"""
-	# XXX There's a bug in here but I'm not quite sure how to solve it yet :\
-	nlovedartists = 0
 	nlovedtracks = 0
-	for [artist, title] in lovedtracks:
-		for record in similartracks:
-			if record[1].has_key('artist') and simplecompare(artist, record[1]['artist']):
-				if record[1].has_key('title') and simplecompare(title, record[1]['title']):
-					record[0] += 25
-					nlovedtracks += 1
-				else:
-					record[0] += 10
-					nlovedartists += 1
+	nlovedartists = 0
+	for record in similartracks:
+		similarity, track = record
+		if track.has_key('artist') and track.has_key('title') and \
+				createkey(track['artist'], track['title']) in lovedtracks:
+			record[0] += 25
+			nlovedtracks += 1
+		elif track.has_key('artist') and \
+				createkey(track['artist']) in lovedartists:
+			record[0] += 10
+			nlovedartists += 1
 	if verbosity >= 3:
 		if nlovedtracks > 0: print 'Marked', nlovedtracks, 'loved tracks from Last.fm'
 		if nlovedartists > 0: print 'Marked', nlovedartists, 'loved artists from Last.fm'
@@ -324,7 +332,7 @@ class LibraryIndex: # {{{1
 					self.__albums_by_artists[artistkey] = []
 				if track['album'] not in self.__albums_by_artists[artistkey]:
 					self.__albums_by_artists[artistkey].append(track['album'])
-				albumkey = self.__createkey(track['artist'], track['album'])
+				albumkey = createkey(track['artist'], track['album'])
 				if not self.__tracks_in_albums.has_key(albumkey):
 					self.__tracks_in_albums[albumkey] = []
 				self.__tracks_in_albums[albumkey].append(track)
@@ -342,11 +350,6 @@ class LibraryIndex: # {{{1
 						index[key] = []
 					index[key].append(track)
 	
-	def __createkey(self, artistname, albumname): # {{{2
-		artistkey = simplifyname(artistname)
-		albumkey = simplifyname(albumname)
-		return '%s - %s' % (artistkey, albumkey)
-
 	def findtracksbyartist(self, artistname): # {{{2
 		artistkey = simplifyname(artistname)
 		if self.__tracks_by_artists.has_key(artistkey):
@@ -366,7 +369,7 @@ class LibraryIndex: # {{{1
 		return []
 
 	def findtracksinalbum(self, artistname, albumname): # {{{2
-		albumkey = self.__createkey(artistname, albumname)
+		albumkey = createkey(artistname, albumname)
 		if self.__tracks_in_albums.has_key(albumkey):
 			tracks = self.__tracks_in_albums[albumkey]
 			tracks.sort(self.__sortalbumtracks)
