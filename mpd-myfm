@@ -308,7 +308,7 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
 			nlovedartists += 1
 	if verbosity >= 3:
 		if nlovedtracks > 0: print 'Marked', nlovedtracks, 'loved tracks from Last.fm'
-		if nlovedartists > 0: print 'Marked', nlovedartists, 'loved artists from Last.fm'
+		if nlovedartists > 0: print 'Marked', nlovedartists, 'tracks by loved artists from Last.fm'
 
 def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
 	"""
