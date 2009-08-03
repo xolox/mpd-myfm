@@ -241,20 +241,20 @@ def createkey(*args): # {{{1
 	return '-'.join(map(simplifyname, args))
 
 def simplifyname(string): # {{{1
-		"""
-		Simplify artist names for fuzzy matching.
-		"""
-		global _cachednames
-		if _cachednames.has_key(string):
-			return _cachednames[string]
-		else:
-			result = string.lower()
-			result = re.sub('^the\s+', '', result)
-			result = re.sub(',\s+the$', '', result)
-			result = re.sub('[^a-z0-9 -]', '', result)
-			result = re.sub('\s+', ' ', result)
-			_cachednames[string] = result
-			return result
+	"""
+	Simplify artist names for fuzzy matching.
+	"""
+	global _cachednames
+	if _cachednames.has_key(string):
+		return _cachednames[string]
+	else:
+		result = string.lower()
+		result = re.sub('^the\s+', '', result)
+		result = re.sub(',\s+the$', '', result)
+		result = re.sub('[^a-z0-9 -]', '', result)
+		result = re.sub('\s+', ' ', result)
+		_cachednames[string] = result
+		return result
  
 _cachednames = {}
 
