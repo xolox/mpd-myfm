@@ -12,13 +12,18 @@ variable PRINT_PROGRESS to false.
 """
 
 PRINT_PROGRESS = True
+CACHE_DIRECTORY = '/tmp/lastfm.py'
 
 import htmlentitydefs
+import os
 import re
 import urllib
 
 if PRINT_PROGRESS:
 	import sys
+
+if not os.path.isdir(CACHE_DIRECTORY):
+	os.mkdir(CACHE_DIRECTORY)
 
 def get_loved_tracks(username): # {{{1
 	"""
@@ -104,6 +109,14 @@ def ban_tracks(options, tracks): # {{{1
 	return __set_tracks(options, tracks, 'ban')
 
 def __get_tracks(username, type): # {{{1
+	# Return cached results when they exist.
+	cachefile = '%s/%s by %s' % (CACHE_DIRECTORY, type, username)
+	if os.path.exists(cachefile):
+		handle = open(cachefile, 'r')
+		tracks = eval(handle.read())
+		handle.close()
+		return tracks
+	# Otherwise get results from Last.fm.
 	tracks = []
 	address = 'http://www.last.fm/user/%s/library/%s?page=%i'
 	regex = '<td[^>]*class="subjectCell"[^>]*>\s*<a[^>]*>(.*?)</a>\s+–\s+<a[^>]*>(.*?)</a>\s*</td>'
@@ -127,6 +140,10 @@ def __get_tracks(username, type): # {{{1
 	if PRINT_PROGRESS:
 		sys.stderr.write('\rFinished downloading %i %s tracks from Last.fm\n' % ( \
 				len(tracks), type))
+	# Cache results before returning them.
+	handle = open(cachefile, 'w')
+	handle.write(str(tracks))
+	handle.close()
 	return tracks
 
 def __set_tracks(options, tracks, action): # {{{1
@@ -161,12 +178,12 @@ def __normalize_name(string): # {{{1
 	"""
 	Normalize the names of artists before querying Last.fm:
 
-	 * strips everything except letters, numbers, dashes and spaces,
+	 * strips everything except letters, numbers, dashes, ampersands and spaces,
 	 * trims whitespace from the start & end,
 	 * compacts multiple whitespace characters into one space.
 	"""
 	string = string.lower()
-	string = re.sub('[^a-z0-9 -]', '', string)
+	string = re.sub('[^a-z0-9 -&]', '', string)
 	string = re.sub('\s+', ' ', string)
 	return string
 
