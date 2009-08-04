@@ -11,65 +11,16 @@ import sys
 import time
 import urllib
 
-# Import local modules.
-import lastfm
-
 CONFIG_FNAME = '~/.mpd-myfm'
 
-def main(): # {{{1
+def main(options):
 
-	options = []
-
-	# Read user's configuration file?
-	configfile = os.path.expanduser(CONFIG_FNAME)
-	if os.path.exists(configfile):
-		handle = open(configfile, 'r')
-		options.extend(doargs(handle.read().split('\n')))
-		handle.close()
-
-	# Parse the command-line options.
-	options.extend(doargs(sys.argv[1:]))
-
-	# Define option defaults.
-	hostname = '127.0.0.1'
-	portnr = 6600
-	passwd = ''
-	songsleft = 3
-	updatetime = 5
-	reconnecttime = 60
-	repeatfactor = 20
-	albummode = False
-	verbosity = 0
-	lastfmaccountforlovedtracks = ''
-	pidfile = ''
-
-	# Process command-line options.
-	for option, argument in options:
-		if option in ('-H', '--host'): hostname = argument
-		elif option in ('-p', '--port'): portnr = int(argument)
-		elif option in ('-P', '--pass'): passwd = argument
-		elif option in ('-s', '--songs'): songsleft = int(argument)
-		elif option in ('-u', '--update'): updatetime = int(argument)
-		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
-		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
-		elif option in ('-l', '--lastfm'): lastfmaccountforlovedtracks = argument
-		elif option in ('-A', '--album'): albummode = True
-		elif option in ('-F', '--pidfile'): pidfile = argument
-		elif option in ('-v', '--verbose'): verbosity += 1
-		elif option in ('-h', '--help'):
-			usage()
-			sys.exit(0)
-		else:
-			print "Unhandled option `%s'" % (option)
-			usage()
-			sys.exit(1)
-
-	if pidfile != '':
+	if not not options['pidfile']:
 		open(pidfile,'w').write(str(os.getpid()))
 
 	client = mpd.MPDClient()
-	if not connect(client, hostname, portnr, passwd):
-		print "Failed to connect to MPD server at `%s' on port `%i'" % (hostname, portnr)
+	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
+		print "Failed to connect to MPD server at `%s' on port `%i'" % (options['hostname'], options['portnr'])
 		usage()
 		sys.exit(1)
 	else:
@@ -79,23 +30,23 @@ def main(): # {{{1
 		lovedtracks = []
 		lovedartists = []
 		bannedtracks = []
-		if lastfmaccountforlovedtracks != '':
-			for [artist, title] in lastfm.get_loved_tracks(lastfmaccountforlovedtracks):
+		if options['lastfmaccount'] != '':
+			for [artist, title] in lastfm.get_loved_tracks(options['lastfmaccount']):
 				lovedtracks.append(createkey(artist, title))
 				if artist != 'Various Artists' and not artist in lovedartists:
 					lovedartists.append(createkey(artist))
-			for [artist, title] in lastfm.get_banned_tracks(lastfmaccountforlovedtracks):
+			for [artist, title] in lastfm.get_banned_tracks(options['lastfmaccount']):
 				bannedtracks.append(createkey(artist, title))
 		while 1:
 			try:
-				if clientenabled(client.status(), songsleft, verbosity):
+				if clientenabled(client.status(), options['songsleft'], options['verbosity']):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
-					similarartists = demoteplayedartists(client, repeatfactor, similarartists)
-					if not albummode or not addalbum(client, index, similarartists, verbosity):
-						addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity)
+					similarartists = demoteplayedartists(client, options['repeatfactor'], similarartists)
+					if not options['albummode'] or not addalbum(client, index, similarartists, options['verbosity']):
+						addtrack(client, index, lasttrack, similarartists, options['repeatfactor'], lovedtracks, lovedartists, bannedtracks, options['verbosity'])
 				# Sleep for a while before trying to update again.
-				sleep(updatetime, verbosity)
+				sleep(options['updatetime'], options['verbosity'])
 			except (socket.error, mpd.ConnectionError), msgconerrer:
 				# Let the user know what's going on.
 				print 'Lost connection? (%s)' % msgconerrer
@@ -103,14 +54,14 @@ def main(): # {{{1
 				try: client.disconnect()
 				except: pass
 				# Sleep for a while before trying to reconnect.
-				sleep(reconnecttime, verbosity)
+				sleep(reconnecttime, options['verbosity'])
 				# Loop until we're connected to MPD again.
-				while not connect(client, hostname, portnr, passwd): pass
+				while not connect(client, options['hostname'], options['portnr'], options['passwd']): pass
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
 				if pidfile != '':
-					os.remove(pidfile)
+					os.remove(options['pidfile'])
 				break
 
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity): # {{{1
@@ -274,6 +225,7 @@ def usage(): # {{{1
   -s, --songs=COUNT            number of tracks before end of playlist to start
                                adding songs (3)
   -A, --album                  add whole albums instead of just one track.
+  -D, --daemonize              Detatch from consolle. (do not detatch)'
   -F, --pidfile=FILENAME       process identifier file to use (none)
   -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
                                frequently and don't play banned tracks
@@ -351,13 +303,78 @@ def connect(client, hostname, portnr, passwd): # {{{2
 
 def doargs(args): # {{{2
 	try:
-		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'pidfile', 'verbose', 'help'])
+		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:ADF:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'daemonize', 'pidfile', 'verbose', 'help'])
 		return opts
 	except getopt.GetoptError, err:
 		print str(err)
 		usage()
 		sys.exit(1)
+
+def getoptions(): # {{{2
+
+	options = []
+
+	# Read user's configuration file?
+	configfile = os.path.expanduser(CONFIG_FNAME)
+	if os.path.exists(configfile):
+		handle = open(configfile, 'r')
+		options.extend(doargs(handle.read().split('\n')))
+		handle.close()
+
+	# Parse the command-line options.
+	options.extend(doargs(sys.argv[1:]))
+
+	# Define option defaults.
+	hostname = '127.0.0.1'
+	portnr = 6600
+	passwd = ''
+	songsleft = 3
+	updatetime = 5
+	reconnecttime = 60
+	repeatfactor = 20
+	albummode = False
+	daemonize = False
+	verbosity = 0
+	lastfmaccountforlovedtracks = ''
+	pidfile = False
+
+	# Process command-line options.
+	for option, argument in options:
+		if option in ('-H', '--host'): hostname = argument
+		elif option in ('-p', '--port'): portnr = int(argument)
+		elif option in ('-P', '--pass'): passwd = argument
+		elif option in ('-s', '--songs'): songsleft = int(argument)
+		elif option in ('-u', '--update'): updatetime = int(argument)
+		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
+		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
+		elif option in ('-l', '--lastfm'): lastfmaccountforlovedtracks = argument
+		elif option in ('-A', '--album'): albummode = True
+		elif option in ('-D', '--daemonize'): daemonize = True
+		elif option in ('-F', '--pidfile'): pidfile = argument
+		elif option in ('-v', '--verbose'): verbosity += 1
+		elif option in ('-h', '--help'):
+			usage()
+			sys.exit(0)
+		else:
+			print "Unhandled option `%s'" % (option)
+			usage()
+			sys.exit(1)
+
+	options = {'hostname': hostname, \
+						 'portnr': portnr, \
+						 'passwd': passwd, \
+						 'songsleft': songsleft, \
+						 'updatetime': updatetime, \
+						 'reconnecttime': reconnecttime, \
+						 'repeatfactor': repeatfactor, \
+						 'lastfmaccount': lastfmaccount, \
+						 'albummode': albummode, \
+						 'daemonize': daemonize, \
+						 'pidfile': pidfile, \
+						 'verbosity': verbosity}
+
+	return options
 
 class LibraryIndex: # {{{1
 
@@ -423,4 +440,14 @@ class LibraryIndex: # {{{1
 # }}}1
 
 if __name__ == '__main__':
+	options = getoptions()
+	if options['lastfmaccount'] != '':
+		import lastfm
+	if options['daemonize']:
+		import daemon
+		with daemon.DaemonContext():
+			main(options)
+	else:
+		main(options)
+
 	main()
