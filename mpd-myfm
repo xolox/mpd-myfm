@@ -11,6 +11,10 @@ import sys
 import time
 import urllib
 
+#import local modules
+import lastfm
+
+
 CONFIG_FNAME = '~/.mpd-myfm'
 
 def main(options):
@@ -318,7 +322,7 @@ def getoptions(): # {{{2
 	albummode = False
 	daemonize = False
 	verbosity = 0
-	lastfmaccountforlovedtracks = ''
+	lastfmaccount = ''
 	pidfile = False
 
 	# Process command-line options.
@@ -330,7 +334,7 @@ def getoptions(): # {{{2
 		elif option in ('-u', '--update'): updatetime = int(argument)
 		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
-		elif option in ('-l', '--lastfm'): lastfmaccountforlovedtracks = argument
+		elif option in ('-l', '--lastfm'): lastfmaccount = argument
 		elif option in ('-A', '--album'): albummode = True
 		elif option in ('-D', '--daemonize'): daemonize = True
 		elif option in ('-F', '--pidfile'): pidfile = argument
@@ -442,8 +446,6 @@ class LibraryIndex: # {{{1
 
 if __name__ == '__main__':
 	options = getoptions()
-	if options['lastfmaccount'] != '':
-		import lastfm
 	if options['daemonize']:
 		import daemon
 		with daemon.DaemonContext():
