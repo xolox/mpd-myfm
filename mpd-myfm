@@ -213,24 +213,6 @@ def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
 	if verbosity >= 3 and nbannedtracks > 0:
 		print 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
 
-def usage(): # {{{1
-	print 'Usage: %s [OPTION]...' % (os.path.split(sys.argv[0])[1])
-	print """
-  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)
-  -p, --port=PORTNR            port number on which MPD is listening (6600)
-  -P, --pass=PASSWORD          password for connecting with MPD (none)
-  -u, --update=SECONDS         seconds between updates to the playlist (5)
-  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)
-  -R, --repeat=COUNT           number of last played tracks not to repeat (20)
-  -s, --songs=COUNT            number of tracks before end of playlist to start
-                               adding songs (3)
-  -A, --album                  add whole albums instead of just one track.
-  -D, --daemonize              Detatch from consolle. (do not detatch)'
-  -F, --pidfile=FILENAME       process identifier file to use (none)
-  -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
-                               frequently and don't play banned tracks
-  -h, --help                   show this help
-"""
 
 # Miscellaneous functions. {{{1
 
@@ -375,6 +357,25 @@ def getoptions(): # {{{2
 						 'verbosity': verbosity}
 
 	return options
+
+def usage(): # {{{2
+	print 'Usage: %s [OPTION]...' % (os.path.split(sys.argv[0])[1])
+	print """
+  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)
+  -p, --port=PORTNR            port number on which MPD is listening (6600)
+  -P, --pass=PASSWORD          password for connecting with MPD (none)
+  -u, --update=SECONDS         seconds between updates to the playlist (5)
+  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)
+  -R, --repeat=COUNT           number of last played tracks not to repeat (20)
+  -s, --songs=COUNT            number of tracks before end of playlist to start
+                               adding songs (3)
+  -A, --album                  add whole albums instead of just one track.
+  -D, --daemonize              Detatch from consolle. (do not detatch)'
+  -F, --pidfile=FILENAME       process identifier file to use (none)
+  -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
+                               frequently and don't play banned tracks
+  -h, --help                   show this help
+"""
 
 class LibraryIndex: # {{{1
 
