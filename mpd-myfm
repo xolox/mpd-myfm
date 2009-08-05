@@ -20,7 +20,7 @@ CONFIG_FNAME = '~/.mpd-myfm'
 def main(options):
 
 	if not not options['pidfile']:
-		open(pidfile,'w').write(str(os.getpid()))
+		open(options['pidfile'],'w').write(str(os.getpid()))
 
 	client = mpd.MPDClient()
 	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
@@ -64,7 +64,7 @@ def main(options):
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
-				if pidfile != '':
+				if not not options['pidfile']:
 					os.remove(options['pidfile'])
 				break
 
