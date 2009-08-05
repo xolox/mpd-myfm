@@ -22,6 +22,19 @@ def main(options):
 	if not not options['pidfile']:
 		open(options['pidfile'],'w').write(str(os.getpid()))
 
+	if not not options['logfile']:
+		#save original stdout
+		stdout = sys.stdout
+		logfile = open(options['logfile'],'a', 0)
+		if not not options['daemonize']:
+			#make all print statments go to logfile
+			sys.stdout = logfile
+		else:
+			#make all print statments go to stdout and logfile
+			sys.stdout = logtee(stdout, logfile)
+	import datetime
+	print 'Started mpd-myfm client'
+
 	client = mpd.MPDClient()
 	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
 		print "Failed to connect to MPD server at `%s' on port `%i'" % (options['hostname'], options['portnr'])
@@ -279,6 +292,13 @@ def unique(list): # {{{2
             result.append(item)
     return result
 
+class logtee: # {{{2
+	def __init__(self, *files):
+		self.files=files
+	def write(self, string):
+		for file in self.files:
+			file.write(string)
+
 def connect(client, hostname, portnr, passwd): # {{{2
 	try:
 		client.connect(host=hostname, port=portnr)
@@ -289,8 +309,8 @@ def connect(client, hostname, portnr, passwd): # {{{2
 
 def doargs(args): # {{{2
 	try:
-		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:ADF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'daemonize', 'pidfile', 'verbose', 'help'])
+		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AL:DF:vh', \
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'logfile', 'daemonize', 'pidfile', 'verbose', 'help'])
 		return opts
 	except getopt.GetoptError, err:
 		print str(err)
@@ -320,6 +340,7 @@ def getoptions(): # {{{2
 	reconnecttime = 60
 	repeatfactor = 20
 	albummode = False
+	logfile = False
 	daemonize = False
 	verbosity = 0
 	lastfmaccount = ''
@@ -336,6 +357,7 @@ def getoptions(): # {{{2
 		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
 		elif option in ('-l', '--lastfm'): lastfmaccount = argument
 		elif option in ('-A', '--album'): albummode = True
+		elif option in ('-L', '--logfile'): logfile = argument
 		elif option in ('-D', '--daemonize'): daemonize = True
 		elif option in ('-F', '--pidfile'): pidfile = argument
 		elif option in ('-v', '--verbose'): verbosity += 1
@@ -356,6 +378,7 @@ def getoptions(): # {{{2
 						 'repeatfactor': repeatfactor, \
 						 'lastfmaccount': lastfmaccount, \
 						 'albummode': albummode, \
+						 'logfile': logfile, \
 						 'daemonize': daemonize, \
 						 'pidfile': pidfile, \
 						 'verbosity': verbosity}
@@ -374,7 +397,8 @@ def usage(): # {{{2
   -s, --songs=COUNT            number of tracks before end of playlist to start
                                adding songs (3)
   -A, --album                  add whole albums instead of just one track.
-  -D, --daemonize              Detatch from consolle. (do not detatch)'
+  -L, --logfile=LOGFILE        Copy script output to file.
+  -D, --daemonize              Detatch from consolle. (do not detatch)
   -F, --pidfile=FILENAME       process identifier file to use (none)
   -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
                                frequently and don't play banned tracks
@@ -453,4 +477,3 @@ if __name__ == '__main__':
 	else:
 		main(options)
 
-	main()

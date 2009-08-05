@@ -10,7 +10,7 @@
 #                    personalised radio station.
 ### END INIT INFO
 
-PIDFILE="/var/run/mpd-myfm.pid"
+PIDFILE="/tmp/mpd-myfm.pid"
 
 # Include mpd-myfm defaults if available
 OPTIONS=""
@@ -30,8 +30,7 @@ case "$1" in
       exit 0
     fi
     log_begin_msg "Starting mpd-myfm services..."
-    touch $PIDFILE && chown mpd $PIDFILE
-    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup --exec /usr/local/bin/mpd-myfm -- $OPTIONS -F $PIDFILE 
+    start-stop-daemon --start --pidfile $PIDFILE --chuid mpd:nogroup --exec /usr/local/bin/mpd-myfm -- $OPTIONS -D -F $PIDFILE 
     log_end_msg $?
     ;;
   stop)
