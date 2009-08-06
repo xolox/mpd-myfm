@@ -59,7 +59,10 @@ def main(options):
 			try:
 				if clientenabled(client.status(), options['songsleft'], options['verbosity']):
 					lasttrack = client.playlistinfo()[-1]
-					similarartists = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
+					similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
+					similarartists = []
+					for artist in similarartists_complex:
+						similarartists.append([artist[0], simplifyname(artist[1])])
 					similarartists = demoteplayedartists(client, options['repeatfactor'], similarartists)
 					if not options['albummode'] or not addalbum(client, index, similarartists, options['verbosity']):
 						addtrack(client, index, lasttrack, similarartists, options['repeatfactor'], lovedtracks, lovedartists, bannedtracks, options['verbosity'])
@@ -153,13 +156,11 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 	trackstofilter = trackstofilter[-repeatfactor : -1]
 	artiststofilter = []
 	for track in trackstofilter:
-		artiststofilter.append(simplifyname(track['artist']))
+		artiststofilter.append(simplifyname(track['artist'].decode('utf-8')))
 	demotedlist = []
 	for artist in similarartists:
 		if artist[1] in artiststofilter:
-		#	print artist, 'demoted' 
 			artist[0] = artist[0] / 5
-		#	print 'demoted to:', artist[0]
 			demotedlist.append(artist)
 		else:
 			demotedlist.append(artist)
