@@ -274,7 +274,7 @@ def weightedrandomchoice(items): # {{{2
 	total = 0
 	for item in items:
 		total += item[0]
-	threshold = random.triangular(0.3, 0.8, 1) * total 
+	threshold = random.uniform(0.6, 1) * total 
 	items.sort()
 	for item in items:
 		threshold -= item[0]
