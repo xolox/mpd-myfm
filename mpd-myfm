@@ -28,6 +28,8 @@ def main(options):
 		usage()
 		sys.exit(1)
 	else:
+		if options['verbosity'] >= 1:
+			print "Building the index of mpd's library"
 		# Create an index from the user's library.
 		index = LibraryIndex(client)
 		# Get the user's loved & banned tracks from Last.fm?
@@ -35,12 +37,16 @@ def main(options):
 		lovedartists = []
 		bannedtracks = []
 		if options['lastfmaccount'] != '':
+			if options['verbosity'] >= 1:
+				print "Scraping last.fm for user's loved and banned tracks"
 			for [artist, title] in lastfm.get_loved_tracks(options['lastfmaccount']):
 				lovedtracks.append(createkey(artist, title))
 				if artist != 'Various Artists' and not artist in lovedartists:
 					lovedartists.append(createkey(artist))
 			for [artist, title] in lastfm.get_banned_tracks(options['lastfmaccount']):
 				bannedtracks.append(createkey(artist, title))
+		if options['verbosity'] >= 1:
+			print "Done... Now starting main program loop."
 		while 1:
 			try:
 				if clientenabled(client.status(), options['songsleft'], options['verbosity']):
