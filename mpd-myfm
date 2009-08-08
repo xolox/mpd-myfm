@@ -13,16 +13,10 @@ import sys
 import time
 import urllib
 
-#import local modules
-import lastfm
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
-def main(options):
-
-	if not not options['pidfile']:
-		open(options['pidfile'],'w').write(str(os.getpid()))
-
+def createlog(options):
 	if not not options['logfile']:
 		#save original stdout
 		stdout = sys.stdout
@@ -33,8 +27,12 @@ def main(options):
 		else:
 			#make all print statments go to stdout and logfile
 			sys.stdout = logtee(stdout, logfile)
-	import datetime
 	print 'Started mpd-myfm client'
+
+def main(options):
+
+	if not not options['pidfile']:
+		open(options['pidfile'],'w').write(str(os.getpid()))
 
 	client = mpd.MPDClient()
 	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
@@ -472,6 +470,9 @@ class LibraryIndex: # {{{1
 
 if __name__ == '__main__':
 	options = getoptions()
+	createlog(options)
+	#import local modules, we do it here so that any errors get loged to the log file.
+	import lastfm
 	if options['daemonize']:
 		import daemon
 		with daemon.DaemonContext():
