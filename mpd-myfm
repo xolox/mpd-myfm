@@ -13,23 +13,28 @@ import sys
 import time
 import urllib
 import traceback
+import logging
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
 
 def main(options):
 
+	[logger, logfile] = createlog(options)
 	if not not options['pidfile']:
 		open(options['pidfile'],'w').write(str(os.getpid()))
 
+	#import local modules, we do it here so that any errors get loged to the log file.
+	import lastfm
+
 	client = mpd.MPDClient()
 	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
-		print "Failed to connect to MPD server at `%s' on port `%i'" % (options['hostname'], options['portnr'])
+		logmsg = "Failed to connect to MPD server at `%s' on port `%i'" % (options['hostname'], options['portnr'])
+		logger.error(logmsg)
 		usage()
 		sys.exit(1)
 	else:
-		if options['verbosity'] >= 1:
-			print "Building the index of mpd's library"
+		logger.info("Building the index of mpd's library")
 		# Create an index from the user's library.
 		index = LibraryIndex(client)
 		# Get the user's loved & banned tracks from Last.fm?
@@ -37,77 +42,77 @@ def main(options):
 		lovedartists = []
 		bannedtracks = []
 		if options['lastfmaccount'] != '':
-			if options['verbosity'] >= 1:
-				print "Scraping last.fm for user's loved and banned tracks"
+			logger.info("Scraping last.fm for user's loved and banned tracks")
 			for [artist, title] in lastfm.get_loved_tracks(options['lastfmaccount']):
 				lovedtracks.append(createkey(artist, title))
 				if artist != 'Various Artists' and not artist in lovedartists:
 					lovedartists.append(createkey(artist))
 			for [artist, title] in lastfm.get_banned_tracks(options['lastfmaccount']):
 				bannedtracks.append(createkey(artist, title))
-		if options['verbosity'] >= 1:
-			print "Done... Now starting main program loop."
+		logger.info("Done... Now starting main program loop.")
+		if not not logfile:
+			logfile.setLevel(logging.WARNING)
 		while 1:
 			try:
-				if clientenabled(client.status(), options['songsleft'], options['verbosity']):
+				if clientenabled(client.status(), options['songsleft'], logger):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = []
 					for artist in similarartists_complex:
 						similarartists.append([artist[0], simplifyname(artist[1])])
 					similarartists = demoteplayedartists(client, options['repeatfactor'], similarartists)
-					if not options['albummode'] or not addalbum(client, index, similarartists, options['verbosity']):
-						addtrack(client, index, lasttrack, similarartists, options['repeatfactor'], lovedtracks, lovedartists, bannedtracks, options['verbosity'])
+					if not options['albummode'] or not addalbum(client, index, similarartists, logger):
+						addtrack(client, index, lasttrack, similarartists, options['repeatfactor'], lovedtracks, lovedartists, bannedtracks, logger)
 				# Sleep for a while before trying to update again.
-				sleep(options['updatetime'], options['verbosity'])
+				sleep(options['updatetime'], logger)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
 				# Let the user know what's going on.
-				print 'Lost connection? (%s)' % msgconerrer
+				logmsg = 'Lost connection? (%s)' % msgconerrer
+				logger.error(logmsg)
 				# Try to close the connection in case it's still open.
 				try: client.disconnect()
 				except: pass
 				# Sleep for a while before trying to reconnect.
-				sleep(reconnecttime, options['verbosity'])
+				sleep(reconnecttime, logger)
 				# Loop until we're connected to MPD again.
 				while not connect(client, options['hostname'], options['portnr'], options['passwd']): pass
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
-				if not not options['pidfile']:
-					os.remove(options['pidfile'])
 				break
 
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, verbosity): # {{{1
+def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
-	removebannedtracks(bannedtracks, similartracks, verbosity)
+	removebannedtracks(bannedtracks, similartracks, logger)
 	# TODO Make treshold configurable?
 	if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
-		print "Adding track based on same genre `%s'." % (lasttrack['genre'])
+		logmsg = "Adding track based on same genre `%s'." % (lasttrack['genre'])
+		logger.info(logmsg) 
 		for track in index.findtracksingenre(lasttrack['genre']):
 			similartracks.append([1, track])
 		similartracks = filterduplicates(client, repeatfactor, similartracks)
-		removebannedtracks(bannedtracks, similartracks, verbosity)
+		removebannedtracks(bannedtracks, similartracks, logger)
 	if len(similartracks) >= 1:
-		marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity)
+		marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
-		if verbosity >= 1:
-			print 'Added', tracktoadd['file'], 'to playlist.'
-	elif verbosity >= 1:
-		print 'Failed to find similar track based on artist nor genre!'
+		logmsg = 'Added', tracktoadd['file'], 'to playlist.'
+		logger.info(logmsg)
+	else:
+		logger.info('Failed to find similar track based on artist nor genre!')
 
-def addalbum(client, index, similarartists, verbosity): # {{{1
+def addalbum(client, index, similarartists, logger): # {{{1
 	similaralbums = findsimilaralbums(index, similarartists)
 	if len(similaralbums) <= 1:
-		if verbosity >= 1:
-			print 'Could not find any albums from similar artists, trying one lose track now.'
-			print 'I will try an album again after that.'
+		logger.info('Could not find any albums from similar artists, trying one lose track now.')
+		logger.info('I will try an album again after that.')
 		return False
 	albumtoadd = weightedrandomchoice(similaralbums)
 	trackstoload = index.findtracksinalbum(albumtoadd[0], albumtoadd[1])
-	print "Adding %i tracks in album `%s' by artist `%s'" % ( \
+	logmsg = "Adding %i tracks in album `%s' by artist `%s'" % ( \
 			len(trackstoload), albumtoadd[1], albumtoadd[0])
+	logger.info(logmsg) 
 	for track in trackstoload:
 		client.add(track['file'])
 	return True
@@ -158,19 +163,19 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 			demotedlist.append(artist)
 	return demotedlist
 
-def clientenabled(status, songsleft, verbosity): # {{{1
+def clientenabled(status, songsleft, logger): # {{{1
 	if int(status['playlistlength']) == 0:
-		if verbosity >= 3: print "Doing nothing because play list is empty."
+		logger.debug("Doing nothing because play list is empty.")
 		return False
 	if int(status['random']) != 0:
-		if verbosity >= 3: print "Doing nothing because random is enabled."
+		logger.debug("Doing nothing because random is enabled.")
 		return False
 	if int(status['repeat']) != 0:
-		if verbosity >= 3: print "Doing nothing because repeat is enabled."
+		logger.debug("Doing nothing because repeat is enabled.")
 		return False
 	if status.has_key('song') and int(status['playlistlength']) > (int(status['song']) + songsleft) \
 			or not status.has_key('song') and int(status['playlistlength']) >= songsleft:
-		if verbosity >= 3: print "Doing nothing because the end of the playlist hasn't been reached."
+		logger.debug("Doing nothing because the end of the playlist hasn't been reached.")
 		return False
 	return True
 
@@ -186,7 +191,7 @@ def findsimilartracks(index, similarartists): # {{{1
 			tracks.append([similarity, track])
 	return tracks
 
-def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
+def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
 	"""
 	Go through the similar tracks and increase the weights of favorite tracks
 	and artists.
@@ -203,11 +208,14 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, verbosity): # {{{1
 				createkey(track['artist']) in lovedartists:
 			record[0] += 10
 			nlovedartists += 1
-	if verbosity >= 3:
-		if nlovedtracks > 0: print 'Marked', nlovedtracks, 'loved tracks from Last.fm'
-		if nlovedartists > 0: print 'Marked', nlovedartists, 'tracks by loved artists from Last.fm'
+	if nlovedtracks > 0:
+		logmsg = 'Marked', nlovedtracks, 'loved tracks from Last.fm'
+		logger.debug(logmsg) 
+	if nlovedartists > 0:
+		logmsg = 'Marked', nlovedartists, 'tracks by loved artists from Last.fm'
+		logger.debug(logmsg)
 
-def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
+def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
 	"""
 	Go through the similar tracks and remove all banned tracks.
 	"""
@@ -221,8 +229,9 @@ def removebannedtracks(bannedtracks, similartracks, verbosity): # {{{1
 			nbannedtracks += 1
 		else:
 			index += 1
-	if verbosity >= 3 and nbannedtracks > 0:
-		print 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
+	if nbannedtracks > 0:
+		logmsg = 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
+		logger.debug(logmsg) 
 
 
 # Miscellaneous functions. {{{1
@@ -274,9 +283,9 @@ def weightedrandomchoice(items): # {{{2
 		if threshold <= 0:
 			return item[1]
 
-def sleep(seconds, verbosity): # {{{2
-	if verbosity >= 2:
-		print 'Sleeping for', seconds, 'seconds'
+def sleep(seconds, logger): # {{{2
+	logmsg = 'Sleeping for', seconds, 'seconds'
+	logger.debug(logmsg) 
 	time.sleep(seconds)
 
 def unique(list): # {{{2
@@ -286,26 +295,31 @@ def unique(list): # {{{2
             result.append(item)
     return result
 
-class logtee: # {{{2
-	def __init__(self, *files):
-		self.files=files
-	def write(self, string):
-		for file in self.files:
-			file.write(string)
 
-def createlog(options):
+def createlog(options): # {{{2
+	if not options['logfile']:
+		logfile = False
+	logger = logging.getLogger("mpd-myfm")
+	logger.setLevel(logging.DEBUG)
 	if not not options['logfile']:
-		#save original stdout
-		stdout = sys.stdout
-		logfile = open(options['logfile'],'a', 0)
-		if not not options['daemonize']:
-			#make all print statments go to logfile
-			sys.stdout = logfile
-		else:
-			#make all print statments go to stdout and logfile
-			sys.stdout = logtee(stdout, logfile)
-	print 'Started mpd-myfm client'
-	return logfile
+		logfile = logging.FileHandler(options['logfile'], mode='a', encoding='utf-8')
+		logfile.setLevel(logging.NOTSET)
+		logfile.setFormatter(logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s'))
+		logger.addHandler(logfile)
+	if not options['daemonize']:
+		console = logging.StreamHandler()
+		if options['verbosity'] == 0:
+			console.setLevel(logging.WARNING)
+		if options['verbosity'] == 1:
+			console.setLevel(logging.INFO)
+		if options['verbosity'] == 2:
+			console.setLevel(logging.DEBUG)
+		if options['verbosity'] >= 3:
+			console.setLevel(logging.NOTSET)
+		console.setFormatter(logging.Formatter('%(name)s: %(levelname)s %(message)s'))
+		logger.addHandler(console)
+	logger.info('Started mpd-myfm client')
+	return [logger, logfile]
 
 def connect(client, hostname, portnr, passwd): # {{{2
 	try:
@@ -477,18 +491,15 @@ class LibraryIndex: # {{{1
 # }}}1
 
 if __name__ == '__main__':
-	options = getoptions()
-	logfile = createlog(options)
-	#import local modules, we do it here so that any errors get loged to the log file.
 	try:
-		import lastfm
+		options = getoptions()
 		if options['daemonize']:
 			import daemon
 			with daemon.DaemonContext():
 				main(options)
 		else:
 			main(options)
-	except:
-		print "An error has occured, the traceback can also be found in the logfile."
-		traceback.print_exc(file=sys.stdout)
-		sys.exit(1)
+	except SystemExit:
+		if not not options['pidfile']:
+			os.remove(options['pidfile'])
+		sys.exit(0)	
