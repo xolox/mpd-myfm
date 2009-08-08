@@ -16,18 +16,6 @@ import urllib
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
-def createlog(options):
-	if not not options['logfile']:
-		#save original stdout
-		stdout = sys.stdout
-		logfile = open(options['logfile'],'a', 0)
-		if not not options['daemonize']:
-			#make all print statments go to logfile
-			sys.stdout = logfile
-		else:
-			#make all print statments go to stdout and logfile
-			sys.stdout = logtee(stdout, logfile)
-	print 'Started mpd-myfm client'
 
 def main(options):
 
@@ -298,6 +286,19 @@ class logtee: # {{{2
 	def write(self, string):
 		for file in self.files:
 			file.write(string)
+
+def createlog(options):
+	if not not options['logfile']:
+		#save original stdout
+		stdout = sys.stdout
+		logfile = open(options['logfile'],'a', 0)
+		if not not options['daemonize']:
+			#make all print statments go to logfile
+			sys.stdout = logfile
+		else:
+			#make all print statments go to stdout and logfile
+			sys.stdout = logtee(stdout, logfile)
+	print 'Started mpd-myfm client'
 
 def connect(client, hostname, portnr, passwd): # {{{2
 	try:
