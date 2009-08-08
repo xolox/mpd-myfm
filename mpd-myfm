@@ -12,7 +12,7 @@ import socket
 import sys
 import time
 import urllib
-
+import traceback
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
@@ -299,6 +299,7 @@ def createlog(options):
 			#make all print statments go to stdout and logfile
 			sys.stdout = logtee(stdout, logfile)
 	print 'Started mpd-myfm client'
+	return logfile
 
 def connect(client, hostname, portnr, passwd): # {{{2
 	try:
@@ -471,13 +472,17 @@ class LibraryIndex: # {{{1
 
 if __name__ == '__main__':
 	options = getoptions()
-	createlog(options)
+	logfile = createlog(options)
 	#import local modules, we do it here so that any errors get loged to the log file.
-	import lastfm
-	if options['daemonize']:
-		import daemon
-		with daemon.DaemonContext():
+	try:
+		import lastfm
+		if options['daemonize']:
+			import daemon
+			with daemon.DaemonContext():
+				main(options)
+		else:
 			main(options)
-	else:
-		main(options)
-
+	except:
+		print "An error has occured, the traceback can also be found in the logfile."
+		traceback.print_exc(file=sys.stdout)
+		sys.exit(1)
