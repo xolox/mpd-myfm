@@ -15,6 +15,7 @@ import urllib
 import traceback
 import logging
 
+
 CONFIG_FNAME = '~/.mpd-myfm'
 
 
@@ -332,7 +333,7 @@ def connect(client, hostname, portnr, passwd): # {{{2
 def doargs(args): # {{{2
 	try:
 		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AL:DF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'logfile', 'daemonize', 'pidfile', 'verbose', 'help'])
+				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'logfile=', 'daemonize', 'pidfile=', 'verbose', 'help'])
 		return opts
 	except getopt.GetoptError, err:
 		print str(err)
