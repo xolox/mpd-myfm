@@ -14,7 +14,7 @@ import time
 import urllib
 import traceback
 import logging
-
+import optparse
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
@@ -22,17 +22,17 @@ CONFIG_FNAME = '~/.mpd-myfm'
 def main(options):
 
 	[logger, logfile] = createlog(options)
-	if not not options['pidfile']:
-		open(options['pidfile'],'w').write(str(os.getpid()))
+	if options.pidfile:
+		open(options.pidfile,'w').write(str(os.getpid()))
 
 	#import local modules, we do it here so that any errors get loged to the log file.
 	import lastfm
 
 	client = mpd.MPDClient()
-	if not connect(client, options['hostname'], options['portnr'], options['passwd']):
-		logmsg = "Failed to connect to MPD server at `%s' on port `%i'" % (options['hostname'], options['portnr'])
+	if not connect(client, options.hostname, options.portnr, options.passwd):
+		logmsg = "Failed to connect to MPD server at `%s' on port `%i'" % (options.hostname, options.portnr)
 		logger.error(logmsg)
-		usage()
+		#TODO: find a way to make optparse give usage info.
 		sys.exit(1)
 	else:
 		logger.info("Building the index of mpd's library")
@@ -42,30 +42,30 @@ def main(options):
 		lovedtracks = []
 		lovedartists = []
 		bannedtracks = []
-		if options['lastfmaccount'] != '':
+		if options.lastfmaccount:
 			logger.info("Scraping last.fm for user's loved and banned tracks")
-			for [artist, title] in lastfm.get_loved_tracks(options['lastfmaccount']):
+			for [artist, title] in lastfm.get_loved_tracks(options.lastfmaccount):
 				lovedtracks.append(createkey(artist, title))
 				if artist != 'Various Artists' and not artist in lovedartists:
 					lovedartists.append(createkey(artist))
-			for [artist, title] in lastfm.get_banned_tracks(options['lastfmaccount']):
+			for [artist, title] in lastfm.get_banned_tracks(options.lastfmaccount):
 				bannedtracks.append(createkey(artist, title))
 		logger.info("Done... Now starting main program loop.")
-		if not not logfile:
+		if logfile:
 			logfile.setLevel(logging.WARNING)
 		while 1:
 			try:
-				if clientenabled(client.status(), options['songsleft'], logger):
+				if clientenabled(client.status(), options.songsleft, logger):
 					lasttrack = client.playlistinfo()[-1]
 					similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
 					similarartists = []
 					for artist in similarartists_complex:
 						similarartists.append([artist[0], simplifyname(artist[1])])
-					similarartists = demoteplayedartists(client, options['repeatfactor'], similarartists)
-					if not options['albummode'] or not addalbum(client, index, similarartists, logger):
-						addtrack(client, index, lasttrack, similarartists, options['repeatfactor'], lovedtracks, lovedartists, bannedtracks, logger)
+					similarartists = demoteplayedartists(client, options.repeatfactor, similarartists)
+					if not options.albummode or not addalbum(client, index, similarartists, logger):
+						addtrack(client, index, lasttrack, similarartists, options.repeatfactor, lovedtracks, lovedartists, bannedtracks, logger)
 				# Sleep for a while before trying to update again.
-				sleep(options['updatetime'], logger)
+				sleep(options.updatetime, logger)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
 				# Let the user know what's going on.
 				logmsg = 'Lost connection? (%s)' % msgconerrer
@@ -74,9 +74,9 @@ def main(options):
 				try: client.disconnect()
 				except: pass
 				# Sleep for a while before trying to reconnect.
-				sleep(options['reconnecttime'], options['verbosity'])
+				sleep(options.reconnecttime, options.verbosity)
 				# Loop until we're connected to MPD again.
-				while not connect(client, options['hostname'], options['portnr'], options['passwd']): pass
+				while not connect(client, options.hostname, options.portnr, options.passwd): pass
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
@@ -298,24 +298,24 @@ def unique(list): # {{{2
 
 
 def createlog(options): # {{{2
-	if not options['logfile']:
+	if not options.logfile:
 		logfile = False
 	logger = logging.getLogger("mpd-myfm")
 	logger.setLevel(logging.DEBUG)
-	if not not options['logfile']:
-		logfile = logging.FileHandler(options['logfile'], mode='a', encoding='utf-8')
+	if not not options.logfile:
+		logfile = logging.FileHandler(options.logfile, mode='a', encoding='utf-8')
 		logfile.setLevel(logging.NOTSET)
 		logfile.setFormatter(logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s'))
 		logger.addHandler(logfile)
-	if not options['daemonize']:
+	if not options.daemonize:
 		console = logging.StreamHandler()
-		if options['verbosity'] == 0:
+		if options.verbosity == 0:
 			console.setLevel(logging.WARNING)
-		if options['verbosity'] == 1:
+		if options.verbosity == 1:
 			console.setLevel(logging.INFO)
-		if options['verbosity'] == 2:
+		if options.verbosity == 2:
 			console.setLevel(logging.DEBUG)
-		if options['verbosity'] >= 3:
+		if options.verbosity >= 3:
 			console.setLevel(logging.NOTSET)
 		console.setFormatter(logging.Formatter('%(name)s: %(levelname)s %(message)s'))
 		logger.addHandler(console)
@@ -325,34 +325,12 @@ def createlog(options): # {{{2
 def connect(client, hostname, portnr, passwd): # {{{2
 	try:
 		client.connect(host=hostname, port=portnr)
-		if passwd != '': client.password(passwd)
+		if passwd: client.password(passwd)
 		return True
 	except socket.error:
 		return False
 
-def doargs(args): # {{{2
-	try:
-		opts, args = getopt.getopt(args, 'H:p:P:r:u:s:R:l:AL:DF:vh', \
-				['host=', 'port=', 'pass=', 'reconnect=', 'update=', 'songs=', 'repeat=', 'lastfm=', 'album', 'logfile=', 'daemonize', 'pidfile=', 'verbose', 'help'])
-		return opts
-	except getopt.GetoptError, err:
-		print str(err)
-		usage()
-		sys.exit(1)
-
 def getoptions(): # {{{2
-
-	options = []
-
-	# Read user's configuration file?
-	configfile = os.path.expanduser(CONFIG_FNAME)
-	if os.path.exists(configfile):
-		handle = open(configfile, 'r')
-		options.extend(doargs(handle.read().split('\n')))
-		handle.close()
-
-	# Parse the command-line options.
-	options.extend(doargs(sys.argv[1:]))
 
 	# Define option defaults.
 	hostname = '127.0.0.1'
@@ -363,70 +341,52 @@ def getoptions(): # {{{2
 	reconnecttime = 60
 	repeatfactor = 20
 	albummode = False
-	logfile = False
+	logfile = ''
 	daemonize = False
 	verbosity = 0
 	lastfmaccount = ''
-	pidfile = False
+	pidfile = ''
 
-	# Process command-line options.
-	for option, argument in options:
-		if option in ('-H', '--host'): hostname = argument
-		elif option in ('-p', '--port'): portnr = int(argument)
-		elif option in ('-P', '--pass'): passwd = argument
-		elif option in ('-s', '--songs'): songsleft = int(argument)
-		elif option in ('-u', '--update'): updatetime = int(argument)
-		elif option in ('-r', '--reconnect'): reconnecttime = int(argument)
-		elif option in ('-R', '--repeat'): repeatfactor = int(argument)
-		elif option in ('-l', '--lastfm'): lastfmaccount = argument
-		elif option in ('-A', '--album'): albummode = True
-		elif option in ('-L', '--logfile'): logfile = argument
-		elif option in ('-D', '--daemonize'): daemonize = True
-		elif option in ('-F', '--pidfile'): pidfile = argument
-		elif option in ('-v', '--verbose'): verbosity += 1
-		elif option in ('-h', '--help'):
-			usage()
-			sys.exit(0)
-		else:
-			print "Unhandled option `%s'" % (option)
-			usage()
-			sys.exit(1)
 
-	options = {'hostname': hostname, \
-						 'portnr': portnr, \
-						 'passwd': passwd, \
-						 'songsleft': songsleft, \
-						 'updatetime': updatetime, \
-						 'reconnecttime': reconnecttime, \
-						 'repeatfactor': repeatfactor, \
-						 'lastfmaccount': lastfmaccount, \
-						 'albummode': albummode, \
-						 'logfile': logfile, \
-						 'daemonize': daemonize, \
-						 'pidfile': pidfile, \
-						 'verbosity': verbosity}
+	# Read user's configuration file?
+	# Config file settings will override defaults.
+	configfile = os.path.expanduser(CONFIG_FNAME)
+	if os.path.exists(configfile):
+		handle = open(configfile, 'r')
+		userconfig = []
+		userconfig=(handle.read().split('\n'))
+		handle.close()
+		for line in userconfig:
+			if not re.match('^\s*(#.*)?$', line):
+				line = re.sub('\s*', '', line)
+				optkey, optarg = line.split('=')
+				optkey = optkey.lower()
+				if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
+					exec "%s=%s" % (optkey, 'optarg')
+				elif re.match('[0-9]', optarg):
+					exec "%s=%s" % (optkey, optarg)
+				else:
+					exec "%s=%s" % (optkey, 'optarg')
 
-	return options
+	#Parse command line, this will override the config file settings.
+	parser = optparse.OptionParser()
+	parser.add_option('-H', '--host', dest='hostname', help='host name of Music Player Daemon', metavar='HOST', default=hostname)
+	parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=portnr)
+	parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=passwd)
+	parser.add_option('-r', '--reconnect', dest='reconnecttime', help='seconds before client tries to reconnect', metavar='SEC', type='int', default=reconnecttime)
+	parser.add_option('-u', '--update', dest='updatetime', help='seconds between updates to the playlist', metavar='SEC', type='int', default=updatetime)
+	parser.add_option('-s', '--songs', dest='songsleft', help='number of tracks before end of playlist to start adding songs', metavar='NUM', type='int', default=songsleft)
+	parser.add_option('-R', '--repeat', dest='repeatfactor', help='number of last played tracks not to repeat', metavar='NUM', type='int', default=repeatfactor)
+	parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=lastfmaccount)
+	parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=albummode)
+	parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=logfile)
+	parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=daemonize)
+	parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=pidfile)
+	parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=verbosity)
+	
+	(options, args) = parser.parse_args()
 
-def usage(): # {{{2
-	print 'Usage: %s [OPTION]...' % (os.path.split(sys.argv[0])[1])
-	print """
-  -H, --host=HOSTNAME          host name of Music Player Daemon (localhost)
-  -p, --port=PORTNR            port number on which MPD is listening (6600)
-  -P, --pass=PASSWORD          password for connecting with MPD (none)
-  -u, --update=SECONDS         seconds between updates to the playlist (5)
-  -r, --reconnect=SECONDS      seconds before client tries to reconnect (60)
-  -R, --repeat=COUNT           number of last played tracks not to repeat (20)
-  -s, --songs=COUNT            number of tracks before end of playlist to start
-                               adding songs (3)
-  -A, --album                  add whole albums instead of just one track.
-  -L, --logfile=LOGFILE        Copy script output to file.
-  -D, --daemonize              Detatch from consolle. (do not detatch)
-  -F, --pidfile=FILENAME       process identifier file to use (none)
-  -l, --lastfm=USERNAME        play tracks loved by user on Last.fm more
-                               frequently and don't play banned tracks
-  -h, --help                   show this help
-"""
+ 	return options
 
 class LibraryIndex: # {{{1
 
@@ -492,15 +452,20 @@ class LibraryIndex: # {{{1
 # }}}1
 
 if __name__ == '__main__':
+	options = getoptions()
 	try:
-		options = getoptions()
-		if options['daemonize']:
+		if options.daemonize:
 			import daemon
 			with daemon.DaemonContext():
 				main(options)
 		else:
 			main(options)
 	except SystemExit:
-		if not not options['pidfile']:
-			os.remove(options['pidfile'])
+		if not not options.pidfile:
+			os.remove(options.pidfile)
 		sys.exit(0)	
+	except KeyboardInterrupt:
+		if not not options.pidfile:
+			os.remove(options.pidfile)
+		sys.exit(0)	
+
