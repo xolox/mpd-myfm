@@ -32,7 +32,7 @@ def main(options):
 	if not connect(client, options.hostname, options.portnr, options.passwd):
 		logmsg = "Failed to connect to MPD server at `%s' on port `%i'" % (options.hostname, options.portnr)
 		logger.error(logmsg)
-		#TODO: find a way to make optparse give usage info.
+		parser.print_help()
 		sys.exit(1)
 	else:
 		logger.info("Building the index of mpd's library")
