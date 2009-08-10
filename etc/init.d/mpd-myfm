@@ -12,12 +12,6 @@
 
 PIDFILE="/tmp/mpd-myfm.pid"
 
-# Include mpd-myfm defaults if available
-OPTIONS=""
-if [ -f "/etc/default/mpd-myfm" ] ; then
-  . /etc/default/mpd-myfm
-fi
-
 # Get lsb functions
 . /lib/lsb/init-functions
 . /etc/default/rcS
@@ -32,7 +26,7 @@ case "$1" in
     log_begin_msg "Starting mpd-myfm services..."
 		PYTHON_VERSION=$( readlink $( which python ) )
 		export PYTHONPATH=/usr/local/lib/$PYTHON_VERSION/site-packages/mpd-myfm
-		start-stop-daemon --start --chuid mpd:daemon --exec /usr/local/bin/mpd-myfm -- $OPTIONS -D -F $PIDFILE 
+		start-stop-daemon --start --chuid mpd:daemon --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
     log_end_msg $?
     ;;
   stop)
