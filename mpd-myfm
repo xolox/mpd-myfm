@@ -19,7 +19,7 @@ import optparse
 CONFIG_FNAME = '~/.mpd-myfm'
 
 
-def main(options):
+def main(options, parser):
 
 	[logger, logfile] = createlog(options)
 	if options.pidfile:
@@ -346,11 +346,16 @@ def getoptions(): # {{{2
 	verbosity = 0
 	lastfmaccount = ''
 	pidfile = ''
+	configfile = '/etc/mpd-myfm.conf'
+
+	#TODO: get config file from commandline.
 
 
 	# Read user's configuration file?
+	if os.path.exists(os.path.expanduser(CONFIG_FNAME)):
+		configfile = os.path.expanduser(CONFIG_FNAME)
+
 	# Config file settings will override defaults.
-	configfile = os.path.expanduser(CONFIG_FNAME)
 	if os.path.exists(configfile):
 		handle = open(configfile, 'r')
 		userconfig = []
@@ -386,7 +391,7 @@ def getoptions(): # {{{2
 	
 	(options, args) = parser.parse_args()
 
- 	return options
+ 	return options, parser
 
 class LibraryIndex: # {{{1
 
@@ -452,19 +457,21 @@ class LibraryIndex: # {{{1
 # }}}1
 
 if __name__ == '__main__':
-	options = getoptions()
+	options, parser = getoptions()
 	try:
 		if options.daemonize:
 			import daemon
 			with daemon.DaemonContext():
-				main(options)
+				main(options, parser)
 		else:
-			main(options)
+			main(options, parser)
 	except SystemExit:
+		#TODO: Make all things come to a neet close.
 		if not not options.pidfile:
 			os.remove(options.pidfile)
 		sys.exit(0)	
 	except KeyboardInterrupt:
+		#TODO: Make all things come to a neet close.
 		if not not options.pidfile:
 			os.remove(options.pidfile)
 		sys.exit(0)	
