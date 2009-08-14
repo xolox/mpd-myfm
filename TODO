@@ -6,3 +6,4 @@
  * When the last track doesn't have a genre, search the other tracks in the
    Media Player Daemon library by the same artist for a genre. Optionally also
    support multiple genres?
+ * Add an option to make mpd-myfm not add long songs (i.e. uncut live sets or LP's), maybe disabled in album mode?
