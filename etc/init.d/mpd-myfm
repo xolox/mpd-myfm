@@ -17,39 +17,41 @@ PIDFILE="/tmp/mpd-myfm.pid"
 . /etc/default/rcS
 
 case "$1" in
-  start)
-    if [ -f $PIDFILE ] ; then
-      log_begin_msg "pidfile exists, mpd-myfm client allready running?"
-      log_end_msg 1
-      exit 0
-    fi
-    log_begin_msg "Starting mpd-myfm services..."
+	start)
+		if [ -f "$PIDFILE" ] ; then
+			if kill -0 `cat "$PIDFILE"`; then
+				log_begin_msg "pidfile exists, mpd-myfm client probably already running.."
+				log_end_msg 1
+				exit 1
+			fi
+		fi
+		log_begin_msg "Starting mpd-myfm services..."
 		PYTHON_VERSION=$( readlink $( which python ) )
 		export PYTHONPATH=/usr/local/lib/$PYTHON_VERSION/site-packages/mpd-myfm
 		start-stop-daemon --start --chuid mpd:daemon --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
-    log_end_msg $?
-    ;;
-  stop)
-    log_begin_msg "Stopping mpd-myfm services..."
-    start-stop-daemon --stop --pidfile $PIDFILE --retry 4
-    log_end_msg $?
-    ;;
-  restart)
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-  reload|force-reload) 
-    $0 stop
-    sleep 1
-    $0 start
-    ;;
-  status)
-    status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
-    ;;
-  *)
-    log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload|status}"
-    exit 1
+		log_end_msg $?
+		;;
+	stop)
+		log_begin_msg "Stopping mpd-myfm services..."
+		start-stop-daemon --stop --pidfile $PIDFILE --retry 4
+		log_end_msg $?
+		;;
+	restart)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	reload|force-reload) 
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	status)
+		status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
+		;;
+	*)
+		log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload|status}"
+		exit 1
 esac
 
 exit 0
