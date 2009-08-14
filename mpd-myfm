@@ -57,7 +57,7 @@ def main(options, parser):
 			try:
 				if clientenabled(client.status(), options.songsleft, logger):
 					lasttrack = client.playlistinfo()[-1]
-					similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack['artist'])]
+					similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''))]
 					similarartists = []
 					for artist in similarartists_complex:
 						similarartists.append([artist[0], simplifyname(artist[1])])
@@ -154,7 +154,7 @@ def demoteplayedartists(client, repeatfactor, similarartists): # {{{1
 	trackstofilter = trackstofilter[-repeatfactor : -1]
 	artiststofilter = []
 	for track in trackstofilter:
-		artiststofilter.append(simplifyname(track['artist'].decode('utf-8')))
+		artiststofilter.append(simplifyname(track.get('artist', '').decode('utf-8')))
 	demotedlist = []
 	for artist in similarartists:
 		if artist[1] in artiststofilter:
