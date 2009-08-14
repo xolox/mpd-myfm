@@ -98,7 +98,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 		marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
-		logmsg = 'Added', tracktoadd['file'], 'to playlist.'
+		logmsg = 'Added %s to playlist.' % (tracktoadd['file'])
 		logger.info(logmsg)
 	else:
 		logger.info('Failed to find similar track based on artist nor genre!')
@@ -210,10 +210,10 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
 			record[0] += 10
 			nlovedartists += 1
 	if nlovedtracks > 0:
-		logmsg = 'Marked', nlovedtracks, 'loved tracks from Last.fm'
+		logmsg = 'Marked %i loved tracks from Last.fm' % nlovedtracks 
 		logger.debug(logmsg) 
 	if nlovedartists > 0:
-		logmsg = 'Marked', nlovedartists, 'tracks by loved artists from Last.fm'
+		logmsg = 'Marked %i tracks by loved artists from Last.fm' % nlovedtracks
 		logger.debug(logmsg)
 
 def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
@@ -231,7 +231,7 @@ def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
 		else:
 			index += 1
 	if nbannedtracks > 0:
-		logmsg = 'Ignored', nbannedtracks, 'banned track(s) from Last.fm'
+		logmsg = 'Ignored %i banned track(s) from Last.fm' % (nbannedtracks)
 		logger.debug(logmsg) 
 
 
@@ -285,7 +285,7 @@ def weightedrandomchoice(items): # {{{2
 			return item[1]
 
 def sleep(seconds, logger): # {{{2
-	logmsg = 'Sleeping for', seconds, 'seconds'
+	logmsg = 'Sleeping for %i seconds' % (seconds)
 	logger.debug(logmsg) 
 	time.sleep(seconds)
 
