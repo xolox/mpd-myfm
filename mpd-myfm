@@ -54,6 +54,7 @@ def main(options, parser):
 				bannedtracks.append(createkey(artist, title))
 		logger.info("Done... Now starting main program loop.")
 		if logfile:
+			#TODO: Make log level configurable?
 			logfile.setLevel(logging.WARNING)
 		while 1:
 			try:
@@ -322,7 +323,7 @@ def createlog(options): # {{{2
 			console.setLevel(logging.INFO)
 		if options.verbosity == 2:
 			console.setLevel(logging.DEBUG)
-		if options.verbosity > 3:
+		if options.verbosity >= 3:
 			console.setLevel(12 - options.verbosity)
 		if options.verbosity >= 15:
 			console.setLevel(logging.NOTSET)
