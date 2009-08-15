@@ -18,22 +18,19 @@ import optparse
 
 CONFIG_FNAME = '~/.mpd-myfm'
 
-
 def main(options, parser):
 
 	[logger, logfile, console] = createlog(options)
-	logmsg = 'logging Level = %i' % (12 - options.verbosity)
-	logger.debug(logmsg)
+	logger.debug('logging Level = %i' % (12 - options.verbosity))
 	if options.pidfile:
 		open(options.pidfile,'w').write(str(os.getpid()))
 
-	#import local modules, we do it here so that any errors get logged to the log file.
+	# Import local modules here so that any errors get logged to the log file.
 	import lastfm
 
 	client = mpd.MPDClient()
 	if not connect(client, options.hostname, options.portnr, options.passwd):
-		logmsg = "Failed to connect to MPD server at `%s' on port `%i'" % (options.hostname, options.portnr)
-		logger.error(logmsg)
+		logger.error("Failed to connect to MPD server at `%s' on port `%i'" % (options.hostname, options.portnr))
 		parser.print_help()
 		sys.exit(1)
 	else:
@@ -54,7 +51,7 @@ def main(options, parser):
 				bannedtracks.append(createkey(artist, title))
 		logger.info("Done... Now starting main program loop.")
 		if logfile:
-			#TODO: Make log level configurable?
+			# TODO: Make log level configurable?
 			logfile.setLevel(logging.WARNING)
 		while 1:
 			try:
@@ -71,8 +68,7 @@ def main(options, parser):
 				sleep(options.updatetime, logger)
 			except (socket.error, mpd.ConnectionError), msgconerrer:
 				# Let the user know what's going on.
-				logmsg = 'Lost connection? (%s)' % msgconerrer
-				logger.error(logmsg)
+				logger.error('Lost connection? (%s)' % msgconerrer)
 				# Try to close the connection in case it's still open.
 				try: client.disconnect()
 				except: pass
@@ -86,7 +82,7 @@ def main(options, parser):
 				cleanup(options)
 				sys.exit(0)
 			except:
-				#TODO: get track that caused crash in error log.
+				# TODO: get track that caused crash in error log.
 				logger.exception('mpd-myfm has encountered a problem and will now exit.')
 				cleanup(options)
 				raise RuntimeError
@@ -97,8 +93,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 	removebannedtracks(bannedtracks, similartracks, logger)
 	# TODO Make threshold configurable?
 	if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
-		logmsg = "Adding track based on same genre `%s'." % (lasttrack['genre'])
-		logger.info(logmsg) 
+		logger.info("Adding track based on same genre `%s'." % lasttrack['genre'])
 		for track in index.findtracksingenre(lasttrack['genre']):
 			similartracks.append([1, track])
 		similartracks = filterduplicates(client, repeatfactor, similartracks)
@@ -107,8 +102,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 		marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
-		logmsg = 'Added %s to play list.' % (tracktoadd['file'])
-		logger.info(logmsg)
+		logger.info('Added %s to play list.' % tracktoadd['file'])
 	else:
 		logger.info('Failed to find similar track based on artist nor genre!')
 
@@ -120,9 +114,8 @@ def addalbum(client, index, similarartists, logger): # {{{1
 		return False
 	albumtoadd = weightedrandomchoice(similaralbums)
 	trackstoload = index.findtracksinalbum(albumtoadd[0], albumtoadd[1])
-	logmsg = "Adding %i tracks in album `%s' by artist `%s'" % ( \
-			len(trackstoload), albumtoadd[1], albumtoadd[0])
-	logger.info(logmsg) 
+	logger.info("Adding %i tracks in album `%s' by artist `%s'" % ( \
+			len(trackstoload), albumtoadd[1], albumtoadd[0]))
 	for track in trackstoload:
 		client.add(track['file'])
 	return True
@@ -174,8 +167,7 @@ def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
 		else:
 			demotedlist.append(artist)
 	if counter > 0:
-		logmsg = 'demoted %i artists because they have recently been played.' % (counter)
-		logger.debug(logmsg)
+		logger.debug('demoted %i artists because they have recently been played.' % counter)
 	return demotedlist
 
 def clientenabled(status, songsleft, logger): # {{{1
@@ -224,11 +216,9 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
 			record[0] += 10
 			nlovedartists += 1
 	if nlovedtracks > 0:
-		logmsg = 'Marked %i loved tracks from Last.fm' % nlovedtracks 
-		logger.debug(logmsg) 
+		logger.debug('Marked %i loved tracks from Last.fm' % nlovedtracks) 
 	if nlovedartists > 0:
-		logmsg = 'Marked %i tracks by loved artists from Last.fm' % nlovedtracks
-		logger.debug(logmsg)
+		logger.debug('Marked %i tracks by loved artists from Last.fm' % nlovedtracks)
 
 def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
 	"""
@@ -245,9 +235,7 @@ def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
 		else:
 			index += 1
 	if nbannedtracks > 0:
-		logmsg = 'Ignored %i banned track(s) from Last.fm' % (nbannedtracks)
-		logger.debug(logmsg) 
-
+		logger.debug('Ignored %i banned track(s) from Last.fm' % nbannedtracks)
 
 # Miscellaneous functions. {{{1
 
@@ -299,8 +287,7 @@ def weightedrandomchoice(items): # {{{2
 			return item[1]
 
 def sleep(seconds, logger): # {{{2
-	logmsg = 'Sleeping for %i seconds' % (seconds)
-	logger.log(5, logmsg) 
+	logger.log(5, 'Sleeping for %i seconds' % seconds)
 	time.sleep(seconds)
 
 def unique(list): # {{{2
@@ -309,7 +296,6 @@ def unique(list): # {{{2
         if item not in result:
             result.append(item)
     return result
-
 
 def createlog(options): # {{{2
 	if not options.logfile:
@@ -371,7 +357,7 @@ def getoptions(): # {{{2
 	pidfile = ''
 	configfile = '/etc/mpd-myfm.conf'
 
-	#TODO: get configuration file name from command line argument.
+	# TODO: get configuration file name from command line argument.
 
 	# Read user's configuration file?
 	if os.path.exists(os.path.expanduser(CONFIG_FNAME)):
