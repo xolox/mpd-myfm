@@ -76,7 +76,7 @@ def main(options, parser):
 				# Sleep for a while before trying to reconnect.
 				sleep(options.reconnecttime, options.verbosity)
 				# Loop until we're connected to MPD again.
-				while not connect(client, options.hostname, options.portnr, options.passwd): pass
+				while not connect(client, options.hostname, options.portnr, options.passwd): sleep(options.reconnecttime, options.verbosity)
 			except KeyboardInterrupt:
 				# Disconnect and close client when interrupted.
 				client.disconnect()
