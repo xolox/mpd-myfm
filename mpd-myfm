@@ -27,7 +27,7 @@ def main(options, parser):
 	if options.pidfile:
 		open(options.pidfile,'w').write(str(os.getpid()))
 
-	#import local modules, we do it here so that any errors get loged to the log file.
+	#import local modules, we do it here so that any errors get logged to the log file.
 	import lastfm
 
 	client = mpd.MPDClient()
@@ -88,7 +88,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 	similartracks = findsimilartracks(index, similarartists)
 	similartracks = filterduplicates(client, repeatfactor, similartracks)
 	removebannedtracks(bannedtracks, similartracks, logger)
-	# TODO Make treshold configurable?
+	# TODO Make threshold configurable?
 	if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
 		logmsg = "Adding track based on same genre `%s'." % (lasttrack['genre'])
 		logger.info(logmsg) 
@@ -100,7 +100,7 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
 		marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
 		tracktoadd = weightedrandomchoice(similartracks)
 		client.add(tracktoadd['file'])
-		logmsg = 'Added %s to playlist.' % (tracktoadd['file'])
+		logmsg = 'Added %s to play list.' % (tracktoadd['file'])
 		logger.info(logmsg)
 	else:
 		logger.info('Failed to find similar track based on artist nor genre!')
@@ -148,7 +148,7 @@ def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
 	"""
 	Make it less likely that a song from an artist who is already in the last
 	'repeatfactor' songs. We do not ban them because that would	make it very 
-	hard to find similar songs after a wile.
+	hard to find similar songs after a while.
 	"""
 	trackstofilter = client.playlistinfo()
 	if len(trackstofilter) < repeatfactor:
@@ -183,7 +183,7 @@ def clientenabled(status, songsleft, logger): # {{{1
 		return False
 	if status.has_key('song') and int(status['playlistlength']) > (int(status['song']) + songsleft) \
 			or not status.has_key('song') and int(status['playlistlength']) >= songsleft:
-		logger.log(7, "Doing nothing because the end of the playlist hasn't been reached.")
+		logger.log(7, "Doing nothing because the end of the play list hasn't been reached.")
 		return False
 	return True
 
@@ -358,14 +358,13 @@ def getoptions(): # {{{2
 	pidfile = ''
 	configfile = '/etc/mpd-myfm.conf'
 
-	#TODO: get config file from commandline.
-
+	#TODO: get configuration file name from command line argument.
 
 	# Read user's configuration file?
 	if os.path.exists(os.path.expanduser(CONFIG_FNAME)):
 		configfile = os.path.expanduser(CONFIG_FNAME)
 
-	# Config file settings will override defaults.
+	# Configuration file settings will override defaults.
 	if os.path.exists(configfile):
 		handle = open(configfile, 'r')
 		userconfig = []
@@ -389,13 +388,13 @@ def getoptions(): # {{{2
 	parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=portnr)
 	parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=passwd)
 	parser.add_option('-r', '--reconnect', dest='reconnecttime', help='seconds before client tries to reconnect', metavar='SEC', type='int', default=reconnecttime)
-	parser.add_option('-u', '--update', dest='updatetime', help='seconds between updates to the playlist', metavar='SEC', type='int', default=updatetime)
-	parser.add_option('-s', '--songs', dest='songsleft', help='number of tracks before end of playlist to start adding songs', metavar='NUM', type='int', default=songsleft)
+	parser.add_option('-u', '--update', dest='updatetime', help='seconds between updates to the play list', metavar='SEC', type='int', default=updatetime)
+	parser.add_option('-s', '--songs', dest='songsleft', help='number of tracks before end of play list to start adding songs', metavar='NUM', type='int', default=songsleft)
 	parser.add_option('-R', '--repeat', dest='repeatfactor', help='number of last played tracks not to repeat', metavar='NUM', type='int', default=repeatfactor)
 	parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=lastfmaccount)
 	parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=albummode)
 	parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=logfile)
-	parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=daemonize)
+	parser.add_option('-D', '--daemonize', dest='daemonize', help='Detach from console.', action='store_true', default=daemonize)
 	parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=pidfile)
 	parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=verbosity)
 	
@@ -476,13 +475,12 @@ if __name__ == '__main__':
 		else:
 			main(options, parser)
 	except SystemExit:
-		#TODO: Make all things come to a neet close.
+		#TODO: Make all things come to a neat close.
 		if not not options.pidfile:
 			os.remove(options.pidfile)
 		sys.exit(0)	
 	except KeyboardInterrupt:
-		#TODO: Make all things come to a neet close.
+		#TODO: Make all things come to a neat close.
 		if not not options.pidfile:
 			os.remove(options.pidfile)
 		sys.exit(0)	
-
