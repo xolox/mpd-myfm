@@ -183,7 +183,7 @@ def __normalize_name(string): # {{{1
 	 * compacts multiple whitespace characters into one space.
 	"""
 	string = string.lower()
-	string = re.sub('[^a-z0-9 -&]', '', string)
+	string = re.sub('[^a-z0-9 &-]', '', string)
 	string = re.sub('\s+', ' ', string)
 	return string
 
