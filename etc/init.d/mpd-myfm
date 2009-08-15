@@ -19,16 +19,17 @@ PIDFILE="/tmp/mpd-myfm.pid"
 case "$1" in
 	start)
 		if [ -f "$PIDFILE" ] ; then
-			if kill -0 `cat "$PIDFILE"`; then
-				log_begin_msg "pidfile exists, mpd-myfm client probably already running.."
+			if kill -0 `cat "$PIDFILE"` > /dev/null 2>&1 ; then
+				log_begin_msg "pidfile exists, mpd-myfm client probably already running. If you know it is not remove $PIDFILE"
 				log_end_msg 1
 				exit 1
 			fi
+			log_begin_msg "reusing stale pidfile at $PIDFILE"
 		fi
 		log_begin_msg "Starting mpd-myfm services..."
 		PYTHON_VERSION=$( readlink $( which python ) )
 		export PYTHONPATH=/usr/local/lib/$PYTHON_VERSION/site-packages/mpd-myfm
-		start-stop-daemon --start --chuid mpd:daemon --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
+		start-stop-daemon --start --chuid mpd --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
 		log_end_msg $?
 		;;
 	stop)
