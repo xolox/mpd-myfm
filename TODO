@@ -1,11 +1,26 @@
- * Select random similar artists instead of tracks, because otherwise the
-   number of tracks per artist influences the randomness too much? (of course
-   this assumes each artist has several tracks)
- * Use favorite tracks to fall back on when no similar tracks are found?
- * Cache the similar artists retrieved from Last.fm?
- * When the last track doesn't have a genre, search the other tracks in the
-   Media Player Daemon library by the same artist for a genre. Optionally also
-   support multiple genres?
- * Add LIRC support for controlling mpd-myfm functions (i.e. toggle album and song mode).
-   Later probably more standard mpd functions (i.e. play and next).
- * Add an option to make mpd-myfm not add long songs (i.e. uncut live sets or LP's), maybe disabled in album mode?
+ * Peter: Select random similar artists instead of tracks, because otherwise
+          the number of tracks per artist influences the randomness too much?
+          (of course this assumes each artist has several tracks)
+ * Peter: Fall back on favorite tracks when no similar tracks exist?
+ * Peter: Cache the similar artists retrieved from Last.fm?
+ * Peter: When the last track doesn't have a genre, search the other tracks in
+          the Media Player Daemon library by the same artist for a genre.
+          Optionally also support multiple genres?
+ * Bart: Add LIRC support for controlling mpd-myfm functions
+         (i.e. toggle album and song mode).
+ * Bart: Later probably more standard mpd functions (i.e. play and next).
+ * Bart: Add an option to make mpd-myfm not add long songs (i.e. uncut live
+         sets or LP's), maybe disabled in album mode?
+ * Peter: When :wumpscut: starts playing on Peter's MPD setup, only tracks by
+          :wumpscut: are added to the play list. This happens because none of
+          the similar artists returned by Last.fm exist in Peter's MPD library,
+          which makes the script fall back to the list of tracks from the same
+          genre, where :wumpscut: always sorts before VNV Nation (the only
+          other artist in Peter's library with the same genre: EBM) which means
+          only tracks by :wumpscut: are selected by the script. A roundabout
+          but ultimately very useful way of fixing this problem is to select
+          artists in genre instead of tracks in genre, to run
+          demoteplayedartists() on the selected artists, and to pick a random
+          track by a random artist from the resulting list.
+
+vim: et ai
