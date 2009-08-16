@@ -16,7 +16,6 @@ import traceback
 import logging
 import optparse
 
-CONFIG_FNAME = '~/.mpd-myfm'
 
 def main(options, parser):
 
@@ -333,73 +332,97 @@ def connect(client, hostname, portnr, passwd): # {{{2
 	except socket.error:
 		return False
 
-def cleanup(options): #{{{2
+def cleanup(options): # {{{2
 	try:
 		if not not options.pidfile:
 			os.remove(options.pidfile)
 	except: pass
 
 def getoptions(): # {{{2
-
-	# Define option defaults.
-	hostname = '127.0.0.1'
-	portnr = 6600
-	passwd = ''
-	songsleft = 3
-	updatetime = 5
-	reconnecttime = 60
-	repeatfactor = 20
-	albummode = False
-	logfile = ''
-	daemonize = False
-	verbosity = 0
-	lastfmaccount = ''
-	pidfile = ''
-	configfile = '/etc/mpd-myfm.conf'
-
-	# TODO: get configuration file name from command line argument.
-
-	# Read user's configuration file?
-	if os.path.exists(os.path.expanduser(CONFIG_FNAME)):
-		configfile = os.path.expanduser(CONFIG_FNAME)
-
-	# Configuration file settings will override defaults.
-	if os.path.exists(configfile):
-		handle = open(configfile, 'r')
-		userconfig = []
-		userconfig=(handle.read().split('\n'))
-		handle.close()
-		for line in userconfig:
-			if not re.match('^\s*(#.*)?$', line):
-				line = re.sub('\s*', '', line)
-				optkey, optarg = line.split('=')
-				optkey = optkey.lower()
-				if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
-					exec "%s=%s" % (optkey, 'optarg')
-				elif re.match('[0-9]', optarg):
-					exec "%s=%s" % (optkey, optarg)
-				else:
-					exec "%s=%s" % (optkey, 'optarg')
-
-	#Parse command line, this will override the config file settings.
-	parser = optparse.OptionParser()
-	parser.add_option('-H', '--host', dest='hostname', help='host name of Music Player Daemon', metavar='HOST', default=hostname)
-	parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=portnr)
-	parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=passwd)
-	parser.add_option('-r', '--reconnect', dest='reconnecttime', help='seconds before client tries to reconnect', metavar='SEC', type='int', default=reconnecttime)
-	parser.add_option('-u', '--update', dest='updatetime', help='seconds between updates to the play list', metavar='SEC', type='int', default=updatetime)
-	parser.add_option('-s', '--songs', dest='songsleft', help='number of tracks before end of play list to start adding songs', metavar='NUM', type='int', default=songsleft)
-	parser.add_option('-R', '--repeat', dest='repeatfactor', help='number of last played tracks not to repeat', metavar='NUM', type='int', default=repeatfactor)
-	parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=lastfmaccount)
-	parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=albummode)
-	parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=logfile)
-	parser.add_option('-D', '--daemonize', dest='daemonize', help='Detach from console.', action='store_true', default=daemonize)
-	parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=pidfile)
-	parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=verbosity)
 	
-	(options, args) = parser.parse_args()
+	def setdefaults(): # {{{3
+		# Define option defaults.
+		defaults = {\
+				'hostname': '127.0.0.1', \
+				'portnr': 6600, \
+				'passwd': '', \
+				'songsleft': 3, \
+				'updatetime': 5, \
+				'reconnecttime': 60, \
+				'repeatfactor': 20, \
+				'albummode': False, \
+				'logfile': '', \
+				'daemonize': False, \
+				'verbosity': 0, \
+				'lastfmaccount': '', \
+				'pidfile': '', \
+				'userconfig': '~/.mpd-myfm', \
+				'configfile': '/etc/mpd-myfm.conf'}
+	 
+		return defaults
 
- 	return options, parser
+	def callback(option, opt_str, value, parshandle): # {{{3
+		parseconfigfile(value, parser=parshandle)
+
+	def parseconfigfile(configfile, defaults={}, parser=''): # {{{3
+		if os.path.exists(configfile):
+			handle = open(configfile, 'r')
+			fileconfig = []
+			fileconfig=(handle.read().split('\n'))
+			handle.close()
+			for line in fileconfig:
+				if not re.match('^\s*(#.*)?$', line):
+					line = re.sub('\s*', '', line)
+					optkey, optarg = line.split('=')
+					optkey = optkey.lower()
+					if parser:
+						if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
+							setattr(parser.values, optkey, optarg)
+						elif re.match('[0-9]', optarg):
+							setattr(parser.values, optkey, int(optarg))
+						else:
+							setattr(parser.values, optkey, optarg)
+					else:
+						if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
+							defaults[optkey]=optarg
+						elif re.match('[0-9]', optarg):
+							defaults[optkey]=int(optarg)
+						else:
+							defaults[optkey]=optarg
+		return defaults 
+	
+	# }}}
+
+	# Parse config files, first system wide then the userconfig to override options set in both.
+	defaults = setdefaults()
+	if os.path.exists('/etc/mpd-myfm.conf'):
+		defaults = parseconfigfile('/etc/mpd-myfm.conf', defaults)
+	if os.path.exists(os.path.expanduser(defaults['userconfig'])):
+		defaults = parseconfigfile(os.path.expanduser(defaults['userconfig']), defaults)
+
+	# Parse command line, this will override the config file settings.
+	# If a configfile is set via the command line the options defined in that configfile will
+	# be inserted at that point in the command line overriding any options given earlier on the commandline
+	# that also exist in the specified configfile.
+	parser = optparse.OptionParser()
+	parser.add_option('-c', '--configfile', help='Specify which configurationfile to use (best given as first option).', metavar='file', type='str', action='callback', callback=callback)
+	parser.add_option('-H', '--host', dest='hostname', help='host name of Music Player Daemon', metavar='HOST', default=defaults['hostname'])
+	parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=defaults['portnr'])
+	parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=defaults['passwd'])
+	parser.add_option('-r', '--reconnect', dest='reconnecttime', help='seconds before client tries to reconnect', metavar='SEC', type='int', default=defaults['reconnecttime'])
+	parser.add_option('-u', '--update', dest='updatetime', help='seconds between updates to the playlist', metavar='SEC', type='int', default=defaults['updatetime'])
+	parser.add_option('-s', '--songs', dest='songsleft', help='number of tracks before end of playlist to start adding songs', metavar='NUM', type='int', default=defaults['songsleft'])
+	parser.add_option('-R', '--repeat', dest='repeatfactor', help='number of last played tracks not to repeat', metavar='NUM', type='int', default=defaults['repeatfactor'])
+	parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=defaults['lastfmaccount'])
+	parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=defaults['albummode'])
+	parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=defaults['logfile'])
+	parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=defaults['daemonize'])
+	parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=defaults['pidfile'])
+	parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
+
+	(options, args) = parser.parse_args()
+	
+	return options, parser
 
 class LibraryIndex: # {{{1
 
