@@ -343,21 +343,21 @@ def getoptions(): # {{{2
 	def setdefaults(): # {{{3
 		# Define option defaults.
 		defaults = {\
-				'hostname': '127.0.0.1', \
-				'portnr': 6600, \
-				'passwd': '', \
-				'songsleft': 3, \
-				'updatetime': 5, \
-				'reconnecttime': 60, \
-				'repeatfactor': 20, \
-				'albummode': False, \
-				'logfile': '', \
-				'daemonize': False, \
-				'verbosity': 0, \
-				'lastfmaccount': '', \
-				'pidfile': '', \
-				'userconfig': '~/.mpd-myfm', \
-				'configfile': '/etc/mpd-myfm.conf'}
+                'hostname': '127.0.0.1', \
+                'portnr': 6600, \
+                'passwd': '', \
+                'songsleft': 3, \
+                'updatetime': 5, \
+                'reconnecttime': 60, \
+                'repeatfactor': 20, \
+                'albummode': False, \
+                'logfile': '', \
+                'daemonize': False, \
+                'verbosity': 0, \
+                'lastfmaccount': '', \
+                'pidfile': '', \
+                'userconfig': '~/.mpd-myfm', \
+                'configfile': '/etc/mpd-myfm.conf'}
 	 
 		return defaults
 
@@ -393,6 +393,29 @@ def getoptions(): # {{{2
 	
 	# }}}
 
+	class MyFmHelpFormatter (optparse.HelpFormatter): # {{{3
+		"""Format help with underlined section headers.
+		"""
+		
+		rows, columns = os.popen('stty size', 'r').read().split()
+		columns = int(columns) - 5
+
+		def __init__(self,
+		             indent_increment=2,
+		             max_help_position=35,
+		             width=columns,
+		             short_first=1):
+			optparse.HelpFormatter.__init__ (
+		            self, indent_increment, max_help_position, width, short_first, )
+
+		def format_usage(self, usage):
+			return self.format_heading(optparse._("Usage:  %s" % usage ))
+
+		def format_heading(self, heading):
+			return "%s\n%s\n" % (heading, "=-"[self.level] * len(heading) )
+
+		# }}}
+
 	# Parse config files, first system wide then the userconfig to override options set in both.
 	defaults = setdefaults()
 	if os.path.exists('/etc/mpd-myfm.conf'):
@@ -404,8 +427,8 @@ def getoptions(): # {{{2
 	# If a configfile is set via the command line the options defined in that configfile will
 	# be inserted at that point in the command line overriding any options given earlier on the commandline
 	# that also exist in the specified configfile.
-	parser = optparse.OptionParser()
-	parser.add_option('-c', '--configfile', help='Specify which configurationfile to use (best given as first option).', metavar='file', type='str', action='callback', callback=callback)
+	parser = optparse.OptionParser(formatter=MyFmHelpFormatter())
+	parser.add_option('-c', '--configfile', help='Specify which configurationfile to use (best given as first option).', metavar='FILE', type='str', action='callback', callback=callback)
 	parser.add_option('-H', '--host', dest='hostname', help='host name of Music Player Daemon', metavar='HOST', default=defaults['hostname'])
 	parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=defaults['portnr'])
 	parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=defaults['passwd'])
