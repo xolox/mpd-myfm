@@ -35,5 +35,10 @@
           /home/peter/Ontwikkeling/Python/mpd-myfm/lastfm.py:70: UnicodeWarning: Unicode unequal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
             if similar_artist != '' and similar_artist != artist and \
           mpd-myfm: INFO Added port-royal/Afraid to Dance/08. Leitmotiv_Glasnost.mp3 to play list.
+ * Peter: Decouple the play list generator from the Music Player Daemon
+          interfacing code so that other music players can be supported.
+          Specifically, I want to support Rhythmbox which shouldn't be too hard
+          because there's "rhythmbox-client" and the music library is available
+          in ~/.local/share/rhythmbox/rhythmdb.xml...
 
 vim: et ai
