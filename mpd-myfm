@@ -301,7 +301,7 @@ def createlog(options): # {{{2
       logfile = False
    logger = logging.getLogger("mpd-myfm")
    logger.setLevel(2)
-   if not not options.logfile:
+   if options.logfile:
       logfile = logging.FileHandler(options.logfile, mode='a', encoding='utf-8')
       logfile.setLevel(logging.NOTSET)
       logfile.setFormatter(logging.Formatter('%(asctime)s %(name)s %(levelname)s %(message)s'))
@@ -334,7 +334,7 @@ def connect(client, hostname, portnr, passwd): # {{{2
 
 def cleanup(options): # {{{2
    try:
-      if not not options.pidfile:
+      if options.pidfile:
          os.remove(options.pidfile)
    except: pass
 
