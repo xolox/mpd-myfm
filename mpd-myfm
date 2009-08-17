@@ -76,7 +76,8 @@ def main(options, parser):
             # Loop until we're connected to MPD again.
             while not connect(client, options.hostname, options.portnr, options.passwd): sleep(options.reconnecttime, logger)
          except (SystemExit, KeyboardInterrupt):
-            logfile.setLevel(logging.NOTSET)
+            if logfile:
+               logfile.setLevel(logging.NOTSET)
             logger.info('mpd-myfm is stopping transmission.')
             cleanup(options)
             sys.exit(0)
