@@ -22,5 +22,18 @@
           artists in genre instead of tracks in genre, to run
           demoteplayedartists() on the selected artists, and to pick a random
           track by a random artist from the resulting list.
+ * Peter: We're clearly still getting used to the way Python handles string
+          encoding because this morning I found the following output in my
+          screen session:
+
+          mpd-myfm: INFO Added Picastro/Metal Cares/05. I Can't Fall Asleep.mp3 to play list.
+          mpd-myfm: DEBUG demoted 6 artists because they have recently been played.
+          Traceback (most recent call last):
+            File "/usr/lib/python2.6/logging/__init__.py", line 773, in emit
+                stream.write(fs % msg.encode("UTF-8"))
+          UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 36: ordinal not in range(128)
+          /home/peter/Ontwikkeling/Python/mpd-myfm/lastfm.py:70: UnicodeWarning: Unicode unequal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
+            if similar_artist != '' and similar_artist != artist and \
+          mpd-myfm: INFO Added port-royal/Afraid to Dance/08. Leitmotiv_Glasnost.mp3 to play list.
 
 vim: et ai
