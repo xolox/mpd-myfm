@@ -83,12 +83,12 @@ def main(options, parser):
             if logfile:
                logfile.setLevel(logging.NOTSET)
             logger.info('mpd-myfm is stopping transmission.')
-            cleanup(options)
+            cleanup(options, logger)
             sys.exit(0)
          except:
             # TODO: get track that caused crash in error log.
             logger.exception('mpd-myfm has encountered a problem and will now exit.')
-            cleanup(options)
+            cleanup(options, logger)
             # Otherwise the stack gets printed by both the logging module and 
             # by the standard python stack tracer.
             # Be aware that since this stack gets printed from within the main()
@@ -341,11 +341,12 @@ def connect(client, hostname, portnr, passwd): # {{{2
    except socket.error:
       return False
 
-def cleanup(options): # {{{2
+def cleanup(options, logger): # {{{2
    try:
       if options.pidfile:
          os.remove(options.pidfile)
-   except: pass
+   except: 
+      logger.error('Could not remove pidfile: %s' % options.pidfile)
 
 def getoptions(): # {{{2
    
