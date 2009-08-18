@@ -406,9 +406,13 @@ def getoptions(): # {{{2
       """Format help with underlined section headers.
       """
       
-      rows, columns = os.popen('stty size', 'r').read().split()
-      columns = int(columns) - 5
-
+      try:
+         rows, columns = os.popen('stty size 2> /dev/null', 'r').read().split()
+      except:
+         columns = 80
+      finally:
+         columns = int(columns) - 5
+      
       def __init__(self,
                    indent_increment=2,
                    max_help_position=35,
