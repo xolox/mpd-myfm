@@ -40,5 +40,13 @@
           Specifically, I want to support Rhythmbox which shouldn't be too hard
           because there's "rhythmbox-client" and the music library is available
           in ~/.local/share/rhythmbox/rhythmdb.xml...
+ * Peter: Bart implemented most the daemon code because he wanted to run the
+          script as a daemon. Unfortunately he didn't document where the pieces
+          of the puzzle go, which is why I just spend more than an hour getting
+          the script to run from /etc/init.d/mpd-myfm :-). Anyway, it turned
+          out that /etc/init.d/mpd-myfm wouldn't work until I'd started the
+          script as a daemon manually once. Maybe it's got something to do with
+          the access rights of the PID file? Apart from fixing the bug we need
+          to add an INSTALL file to the repository ASAP.
 
 vim: et ai
