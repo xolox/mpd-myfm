@@ -48,5 +48,11 @@
           script as a daemon manually once. Maybe it's got something to do with
           the access rights of the PID file? Apart from fixing the bug we need
           to add an INSTALL file to the repository ASAP.
+ * Peter: My mpd-myfm daemon just 'died' because of a connection timeout while
+          connecting to Last.fm from the function lastfm.get_similar_artists():
+            File "/usr/lib/python2.5/httplib.py", line 683, in connect
+              raise socket.error, msg
+            IOError: [Errno socket error] (110, 'Connection timed out')
+          Maybe the main loop should be restarted when such errors occur?
 
 vim: et ai
