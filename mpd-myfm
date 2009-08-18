@@ -30,8 +30,12 @@ def main(options, parser):
    client = mpd.MPDClient()
    if not connect(client, options.hostname, options.portnr, options.passwd):
       logger.error("Failed to connect to MPD server at `%s' on port `%i'" % (options.hostname, options.portnr))
-      parser.print_help()
-      sys.exit(1)
+      if not options.daemonize:
+         parser.print_help()
+         sys.exit(1)
+      else:
+         # If daemonized we should not exit on any connection failure.
+         while not connect(client, options.hostname, options.portnr, options.passwd): sleep(10, logger)
    else:
       logger.info("Building the index of mpd's library")
       # Create an index from the user's library.
