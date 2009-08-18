@@ -85,6 +85,10 @@ def main(options, parser):
             # TODO: get track that caused crash in error log.
             logger.exception('mpd-myfm has encountered a problem and will now exit.')
             cleanup(options)
+            # Otherwise the stack gets printed by both the logging module and 
+            # by the standard python stack tracer.
+            # Be aware that since this stack gets printed from within the main()
+            # function the main() call will be omited in the stacktrace output.
             raise RuntimeError
             
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
