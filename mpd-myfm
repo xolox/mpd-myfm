@@ -21,6 +21,13 @@ def main(options, parser):
 
    [logger, logfile, console] = createlog(options)
    logger.debug('logging Level = %i' % (12 - options.verbosity))
+   if options.daemonize and options.pidfile and os.path.exists(options.pidfile):
+      try:
+         if os.stat('/proc/20949'):
+            logger.warning('The pidfile (%s) points to an existing process, mpd-myfm is probably already running.' % options.pidfile)
+            raise RuntimeError
+      except OSError:
+         pass
    if options.pidfile:
       open(options.pidfile,'w').write(str(os.getpid()))
 
