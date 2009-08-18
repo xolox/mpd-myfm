@@ -1,0 +1,38 @@
+
+Documentation on where the pieces of the mpd-myfm puzzle go.
+
+If you just want to run mpd-myfm manually from your home, you can copy the
+whole directory you got from git to wherever you want.
+To use a config file edit "~/.mpd-myfm".
+
+If you plan on using mpd-myfm as a daemon process running from init.d
+you have to copy a few files.
+
+ * Copy the daemon directory and lastfm.py file to 
+   "/usr/local/lib/python[VERSION]/site-packages/mpd-myfm".
+ * Secondly place the mpd-myfm executable in root's $PATH.
+   And make it executable (chmod +x).
+ * Then make a copy of the init.d script in "/etc/init.d/" (make 
+   runlevel configurations to your likings).
+ * mpd-myfm looks for a config file at /etc/mpd-myfm.conf
+
+This should do it. If you have any trouble getting mpd-myfm to run from the 
+init.d script, try running it manually as root first. (this is due to issues with
+the loading of our own modules which will hopefully be resolved in the near 
+future)
+
+The config file uses a format of 'OPTION = VALUE' the options are:
+  hostname  = The hostname or ip address of the mpd server. (127.0.0.1)
+  portnr    = The port number to use in the connection. (6600)
+  passwd    = If you use a password to connect to the mpd server set it here.
+  reconnecttime = The time to wait before reconnecting on connection loss. (60)
+  repeatfactor  = The number of tracks to check for the same artist, and reduce
+                  the possibility of adding a song by the same artist. (20)
+  albummode = Set this to True (capital T) to make mpd-myfm add whole albums in
+              stead of just one song. (False)
+  logfile   = The file to place the log messages in. (No logfile)
+  daemonize = Run as daemon (ignored when started from init.d) (False)
+	verbosity = Level of output, set to 1 to see which songs get added. (0)
+  lastfmaccount = The username of your last.fm account to find loved songs.
+  pidfile   = The process id file to use (ignored when started from init.d), to
+              make sure you don't run more than one instance of mpd-myfm. (No pidfile)
