@@ -49,7 +49,7 @@ def main(options, parser):
    
    if options.effectivegroup:
       gid = grp.getgrnam(options.effectivegroup)[2]
-      try: os.fchown(pidfile.fileno(), -1, gid)
+      try: os.chown(options.pidfile, -1, gid)
       except OSError: logger.exception('Could not change group of %s.' % options.pidfile)
       try: os.setgid(gid)
       except OSError: 
@@ -57,7 +57,7 @@ def main(options, parser):
          raise RuntimeError
    if options.effectiveuser:
       uid = pwd.getpwnam(options.effectiveuser)[2]
-      try: os.fchown(pidfile.fileno(), uid, -1)
+      try: os.chown(options.pidfile, uid, -1)
       except OSError: logger.exception('Could not change ownership of %s.' % options.pidfile)
       try: os.setuid(uid)
       except OSError: 
