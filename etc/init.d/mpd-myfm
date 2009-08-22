@@ -11,7 +11,7 @@
 ### END INIT INFO
 
 PIDFILE=$(grep "^pidfile" /etc/mpd-myfm.conf |awk -F\= '{print $2}')
-if [ -n $PIDFILE ] ; then
+if [ -z $PIDFILE ] ; then
 	PIDFILE="/tmp/mpd-myfm.pid"
 fi
 
