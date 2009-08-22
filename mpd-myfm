@@ -476,7 +476,7 @@ def getoptions(): # {{{2
    defaults = setdefaults()
    if os.path.exists('/etc/mpd-myfm.conf'):
       defaults = parseconfigfile('/etc/mpd-myfm.conf', defaults)
-   if os.path.exists(os.path.expanduser(defaults['userconfig'])):
+   if os.path.exists(os.path.expanduser(defaults['userconfig'])) and os.getuid() != 0:
       defaults = parseconfigfile(os.path.expanduser(defaults['userconfig']), defaults)
 
    # Parse command line, this will override the config file settings.
