@@ -54,11 +54,5 @@
               raise socket.error, msg
             IOError: [Errno socket error] (110, 'Connection timed out')
           Maybe the main loop should be restarted when such errors occur?
- * Bart: Get things sorted out with regarts to the loading of local modules. It
-         aparantly doesn't work the way I thought it would :-(. This is probably
-         also the reason Peter had such a hard time getting the daemon up and 
-         running.
- * Bart: Make effective user change hapen in python code so we can use the 
-         more standard places for the log an pid files.
 
 vim: et ai
