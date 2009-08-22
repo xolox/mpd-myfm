@@ -30,8 +30,6 @@ case "$1" in
 			log_begin_msg "reusing stale pidfile at $PIDFILE"
 		fi
 		log_begin_msg "Starting mpd-myfm services..."
-		PYTHON_VERSION=$( readlink $( which python ) )
-		export PYTHONPATH=/usr/local/lib/$PYTHON_VERSION/site-packages/mpd-myfm
 		start-stop-daemon --start --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
 		log_end_msg $?
 		;;
