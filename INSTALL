@@ -1,6 +1,10 @@
 
 Documentation on where the pieces of the mpd-myfm puzzle go.
 
+To use mpd-myfm you need python version 2.5 or above (not python 3) and must
+install the python mpdclient module which is available on most distributions as
+a package.
+
 If you just want to run mpd-myfm manually from your home, you can copy the
 whole directory you got from git to wherever you want.
 To use a config file edit "~/.mpd-myfm".
@@ -10,6 +14,9 @@ you have to copy a few files.
 
  * Copy the daemon directory and lastfm.py file to 
    "/usr/local/lib/python[VERSION]/site-packages/mpd-myfm".
+   If you already have the daemon module from PEP3143 (see 
+   "http://www.python.org/dev/peps/pep-3143/") you can suffice with only
+   copying lastfm.py
  * Secondly place the mpd-myfm executable in root's $PATH.
    And make it executable (chmod +x).
  * Then make a copy of the init.d script in "/etc/init.d/" (make 
