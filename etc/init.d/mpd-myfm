@@ -10,7 +10,10 @@
 #                    personalised radio station.
 ### END INIT INFO
 
-PIDFILE="/tmp/mpd-myfm.pid"
+PIDFILE=$(grep "^pidfile" /etc/mpd-myfm.conf |awk -F\= '{print $2}')
+if [ -n $PIDFILE ] ; then
+	PIDFILE="/tmp/mpd-myfm.pid"
+fi
 
 # Get lsb functions
 . /lib/lsb/init-functions
@@ -29,7 +32,7 @@ case "$1" in
 		log_begin_msg "Starting mpd-myfm services..."
 		PYTHON_VERSION=$( readlink $( which python ) )
 		export PYTHONPATH=/usr/local/lib/$PYTHON_VERSION/site-packages/mpd-myfm
-		start-stop-daemon --start --chuid mpd --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
+		start-stop-daemon --start --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
 		log_end_msg $?
 		;;
 	stop)
