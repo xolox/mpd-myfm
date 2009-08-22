@@ -15,6 +15,8 @@ import urllib
 import traceback
 import logging
 import optparse
+import pwd
+import grp
 
 
 def main(options, parser):
@@ -24,21 +26,45 @@ def main(options, parser):
    if options.pidfile:
       if os.path.exists(options.pidfile):
          try:
-            pidfile = open(options.pidfile, 'r')
+            pidfile = open(options.pidfile, 'rw')
             pid = pidfile.read(8)
-            if os.stat('/proc/%s' % pid):
+            if os.path.exists('/proc/%s' % pid) and pid != '':
                logger.warning('The pidfile (%s) points to an existing process, mpd-myfm is probably already running.' % options.pidfile)
                if options.daemonize:
                   logger.warning('If you are sure mpd-myfm is not running you can remove %s and run mpd-myfm again.' % options.pidfile)
                   raise RuntimeError
                else:
                   logger.warning('Not using pidfile, since it is already in use by another process')
-            else: open(options.pidfile,'w').write(str(os.getpid()))
-         except OSError:
-               pass
-      else:
-         open(options.pidfile,'w').write(str(os.getpid()))
+                  options.pidfile = ''
+            else: 
+               logger.warning('reusing stale pidfile (%s)' % options.pidfile)
+               pidfile = open(options.pidfile,'w')
+               pidfile.write(str(os.getpid()))
 
+         except OSError, error:
+            logger.error('An error ocured while creating the pidfile: %s' % error)
+      else:
+         pidfile = open(options.pidfile,'w')
+         pidfile.write(str(os.getpid()))
+   
+   if options.effectivegroup:
+      gid = grp.getgrnam(options.effectivegroup)[2]
+      try: os.fchown(pidfile.fileno(), -1, gid)
+      except OSError: logger.exception('Could not change group of %s.' % options.pidfile)
+      try: os.setgid(gid)
+      except OSError: 
+         logger.exception('Could not set group to %s.' % options.effectivegroup)
+         raise RuntimeError
+   if options.effectiveuser:
+      uid = pwd.getpwnam(options.effectiveuser)[2]
+      try: os.fchown(pidfile.fileno(), uid, -1)
+      except OSError: logger.exception('Could not change ownership of %s.' % options.pidfile)
+      try: os.setuid(uid)
+      except OSError: 
+         logger.exception('Could not set user to %s.' % options.effectiveuser)
+         raise RuntimeError
+   # Close pidfile handle here so the above chown doesn't fail.
+   pidfile.close()
    # Import local modules here so that any errors get logged to the log file.
    import lastfm
 
@@ -98,12 +124,10 @@ def main(options, parser):
             if logfile:
                logfile.setLevel(logging.NOTSET)
             logger.info('mpd-myfm is stopping transmission.')
-            cleanup(options, logger)
             sys.exit(0)
          except:
             # TODO: get track that caused crash in error log.
             logger.exception('mpd-myfm has encountered a problem and will now exit.')
-            cleanup(options, logger)
             # Otherwise the stack gets printed by both the logging module and 
             # by the standard python stack tracer.
             # Be aware that since this stack gets printed from within the main()
@@ -360,29 +384,32 @@ def cleanup(options, logger): # {{{2
    try:
       if options.pidfile:
          os.remove(options.pidfile)
-   except: 
-      logger.error('Could not remove pidfile: %s' % options.pidfile)
+   except:
+      if logger:
+         logger.error('Could not remove pidfile: %s' % options.pidfile)
 
 def getoptions(): # {{{2
    
    def setdefaults(): # {{{3
       # Define option defaults.
-      defaults = { \
-            'hostname': '127.0.0.1', \
-            'portnr': 6600, \
-            'passwd': '', \
-            'songsleft': 3, \
-            'updatetime': 5, \
-            'reconnecttime': 60, \
-            'repeatfactor': 20, \
-            'albummode': False, \
-            'logfile': '', \
-            'daemonize': False, \
-            'verbosity': 0, \
-            'lastfmaccount': '', \
-            'pidfile': '', \
-            'userconfig': '~/.mpd-myfm', \
-            'configfile': '/etc/mpd-myfm.conf'}
+      defaults = { 
+            'hostname': '127.0.0.1',
+            'portnr': 6600,
+            'passwd': '',
+            'songsleft': 3,
+            'updatetime': 5,
+            'reconnecttime': 60,
+            'repeatfactor': 20,
+            'albummode': False,
+            'logfile': '',
+            'daemonize': False,
+            'verbosity': 0,
+            'lastfmaccount': '',
+            'pidfile': '',
+            'userconfig': '~/.mpd-myfm',
+            'configfile': '/etc/mpd-myfm.conf', 
+            'effectiveuser': '',
+            'effectivegroup': ''}
     
       return defaults
 
@@ -470,6 +497,8 @@ def getoptions(): # {{{2
    parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=defaults['logfile'])
    parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=defaults['daemonize'])
    parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=defaults['pidfile'])
+   parser.add_option('--userid', dest='effectiveuser', help='Name of the useraccount to run as if daemonized.', metavar='USERNAME', default=defaults['effectiveuser'])
+   parser.add_option('--groupid', dest='effectivegroup', help='Name of the group to run in if daemonized.', metavar='GROUPNAME', default=defaults['effectivegroup'])
    parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
 
    (options, args) = parser.parse_args()
@@ -554,10 +583,13 @@ if __name__ == '__main__':
       else:
          main(options, parser)
    except RuntimeError:
+      cleanup(options, None)
       sys.exit(1)
    except (SystemExit, KeyboardInterrupt):
-      sys.exit()
+      cleanup(options, None)
+      sys.exit(0)
    except ImportError, module:
+      cleanup(options, None)
       print 'An error has occured during the importing of modules: %s.' % module
 
 # vim: et ts=3 sw=3 fdm=marker
