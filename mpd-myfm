@@ -21,15 +21,23 @@ def main(options, parser):
 
    [logger, logfile, console] = createlog(options)
    logger.debug('logging Level = %i' % (12 - options.verbosity))
-   if options.daemonize and options.pidfile and os.path.exists(options.pidfile):
-      try:
-         if os.stat('/proc/20949'):
-            logger.warning('The pidfile (%s) points to an existing process, mpd-myfm is probably already running.' % options.pidfile)
-            raise RuntimeError
-      except OSError:
-         pass
    if options.pidfile:
-      open(options.pidfile,'w').write(str(os.getpid()))
+      if os.path.exists(options.pidfile):
+         try:
+            pidfile = open(options.pidfile, 'r')
+            pid = pidfile.read(8)
+            if os.stat('/proc/%s' % pid):
+               logger.warning('The pidfile (%s) points to an existing process, mpd-myfm is probably already running.' % options.pidfile)
+               if options.daemonize:
+                  logger.warning('If you are sure mpd-myfm is not running you can remove %s and run mpd-myfm again.' % options.pidfile)
+                  raise RuntimeError
+               else:
+                  logger.warning('Not using pidfile, since it is already in use by another process')
+            else: open(options.pidfile,'w').write(str(os.getpid()))
+         except OSError:
+               pass
+      else:
+         open(options.pidfile,'w').write(str(os.getpid()))
 
    # Import local modules here so that any errors get logged to the log file.
    import lastfm
@@ -539,8 +547,10 @@ if __name__ == '__main__':
          try:
             with daemon.DaemonContext():
                main(options, parser)
-         except DaemonError, error:
+         except daemon.daemon.DaemonError, error:
             print 'Could not Daemonize:', error
+            if options.verbosity >= 2: raise
+            else : raise RuntimeError
       else:
          main(options, parser)
    except RuntimeError:
