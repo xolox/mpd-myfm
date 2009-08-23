@@ -101,7 +101,7 @@ def main(options, parser):
          try:
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
-               similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''))]
+               similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', '').decode('utf-8'))]
                similarartists = []
                for artist in similarartists_complex:
                   similarartists.append([artist[0], simplifyname(artist[1])])
