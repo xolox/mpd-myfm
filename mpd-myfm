@@ -95,8 +95,14 @@ def main(options, parser):
             bannedtracks.append(createkey(artist, title))
       logger.info("Done... Now starting main program loop.")
       if logfile:
-         # TODO: Make log level configurable?
-         logfile.setLevel(logging.WARNING)
+         if options.loglevel == 1:
+            logfile.setLevel(logging.INFO)
+         elif options.loglevel == 2:
+            logfile.setLevel(logging.DEBUG)
+         elif options.loglevel >= 3:
+            logfile.setLevel(12 - options.loglevel)
+         else:
+            logfile.setLevel(logging.WARNING)
       while 1:
          try:
             if clientenabled(client.status(), options.songsleft, logger):
@@ -404,6 +410,7 @@ def getoptions(): # {{{2
             'logfile': '',
             'daemonize': False,
             'verbosity': 0,
+            'loglevel': 0,
             'lastfmaccount': '',
             'pidfile': '',
             'userconfig': '~/.mpd-myfm',
@@ -502,7 +509,7 @@ def getoptions(): # {{{2
    parser.add_option('--userid', dest='effectiveuser', help='Name of the useraccount to run as if daemonized.', metavar='USERNAME', default=defaults['effectiveuser'])
    parser.add_option('--groupid', dest='effectivegroup', help='Name of the group to run in if daemonized.', metavar='GROUPNAME', default=defaults['effectivegroup'])
    parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
-
+   parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get loged in the logfile (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
    (options, args) = parser.parse_args()
    
    return options, parser
