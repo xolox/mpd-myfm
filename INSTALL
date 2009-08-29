@@ -56,4 +56,6 @@ The lirc configuration commands mpd-myfm accepts are:
  * 'volumedown'
  * 'next'
  * 'prev' 
- * 'updatedb'
+ * 'updatedb'    At the moment this only makes the mpd server update its 
+                 library but mpd-myfm doesn't reloads the index and so will
+                 not be aware of any new songs or changed locations.
