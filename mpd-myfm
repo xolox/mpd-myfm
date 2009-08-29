@@ -17,6 +17,7 @@ import logging
 import optparse
 import pwd
 import grp
+import threading
 
 
 def main(options, parser):
@@ -77,6 +78,16 @@ def main(options, parser):
          # If daemonized we should not exit on any connection failure.
          while not connect(client, options.hostname, options.portnr, options.passwd): sleep(10, logger)
    else:
+      if options.lircenabled:
+         try:
+            if pylirc: # Check if the pylirc module is available in namespace.
+               irrec = lircstart(options, client, logger)
+         except NameError:
+            logger.error('Could not load the pylirc module needed for lirc support.')
+            logger.info('Will continue without lirc support.')
+            options.lircenabled = False 
+            irrec = False # Set irrec to false to avoid variable not set errors.
+      else: irrec = False
       logger.info("Building the index of mpd's library")
       # Create an index from the user's library.
       index = LibraryIndex(client)
@@ -105,6 +116,8 @@ def main(options, parser):
             logfile.setLevel(logging.WARNING)
       while 1:
          try:
+            if irrec:
+             irrec = lirccheck(irrec, client, options, logger)
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
                similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', '').decode('utf-8'))]
@@ -129,6 +142,8 @@ def main(options, parser):
          except (SystemExit, KeyboardInterrupt):
             if logfile:
                logfile.setLevel(logging.NOTSET)
+            options.lircenabled = False
+            irrec.join()
             logger.info('mpd-myfm is stopping transmission.')
             sys.exit(0)
          except:
@@ -292,6 +307,81 @@ def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
    if nbannedtracks > 0:
       logger.debug('Ignored %i banned track(s) from Last.fm' % nbannedtracks)
 
+# Lirc support. {{{1
+
+class IRRec(threading.Thread): # {{{2
+   """Threading class for polling lircd, it will set a class instance of 'keypressed'."""
+   keypressed = []
+   def __init__(self, client, options, logger):
+      threading.Thread.__init__(self)
+      self.client = client
+      self.options = options
+      self.logger = logger
+
+   def run(self): # {{{3
+      lirchandle = pylirc.init("mpd-myfm", options.lircrc, 0)
+      if lirchandle:
+         self.logger.info('lirc thread started.')
+      time.sleep(2)
+      while options.lircenabled:
+         # we do a time.sleep() here so the polling is done on an interval
+         # otherwise it will drain all cpu power for polling, 100ms seems to result in a decent responsiveness.
+         time.sleep(0.1)
+         code = ''
+         s = pylirc.nextcode()
+         if(s):
+            for code in s:
+               if code == 'albummode':
+                  if self.options.albummode: options.albummode = False
+                  else: self.options.albummode = True
+                  self.pushconfirmation()
+                  self.logger.info('togled albummode to %s.' % options.albummode)
+               elif code == 'volumeup':
+                  self.client.volume(1)
+               elif code == 'volumedown':
+                  self.client.volume(-1)
+               elif code == 'pause':
+                  self.client.pause()
+               elif code == 'stop':
+                  self.client.stop()
+               elif code == 'play':
+                  self.client.play()
+               elif code == 'next':
+                  self.client.next()
+               elif code == 'prev':
+                  self.client.previous()
+               elif code == 'updatedb':
+                  self.pushconfirmation()
+                  logger.info('Started updating the mpd library.')
+                  self.client.update()
+                  # TODO: Get notified when finished and reload library.
+      else:
+         self.exit()
+
+   def pushconfirmation(self): # {{{3
+      if self.client.status().get('state') == 'play':
+         self.client.pause()
+         time.sleep(0.25)
+         self.client.play()
+
+   def exit(self): # {{{3
+         self.logger.info('Stopping lirc thread.')
+         pylirc.exit()
+         sys.exit()
+
+  
+def lircstart(options, client, logger): # {{{2
+   irrec = IRRec(client, options, logger)
+   irrec.start()
+   return irrec
+
+def lirccheck(irrec, client, options, logger): # {{{2
+   if(irrec.isAlive() == 0):
+      logger.warning('The lirc thread died, restarting it.')
+      irrec = IRRec(options, client, logger)
+      irrec.start()
+   return irrec
+
 # Miscellaneous functions. {{{1
 
 def createkey(*args): # {{{2
@@ -415,6 +505,8 @@ def getoptions(): # {{{2
             'loglevel': 0,
             'lastfmaccount': '',
             'pidfile': '',
+            'lircrc': '~/.lircrc',
+            'lircenabled': False,
             'userconfig': '~/.mpd-myfm',
             'configfile': '/etc/mpd-myfm.conf', 
             'modulepath': '/usr/local/lib/python%s/site-packages/mpd-myfm' % sys.version[:3],
@@ -505,6 +597,8 @@ def getoptions(): # {{{2
    parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=defaults['lastfmaccount'])
    parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=defaults['albummode'])
    parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=defaults['logfile'])
+   parser.add_option('-i', '--lirc', dest='lircenabled', help='Enable support for lirc remote controll', action='store_true', default=defaults['lircenabled'])
+   parser.add_option('-I', '--lircrc', dest='lircrc', help='Lirc keymapping file to use.', metavar='FILE', default=defaults['lircrc'])
    parser.add_option('-M', '--modulepath', dest='modulepath', help='Directory where the modules that came with mpd-myfm are stored.', metavar='/PATH/TO/', default=defaults['modulepath'])
    parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=defaults['daemonize'])
    parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use.', metavar='FILE', default=defaults['pidfile'])
@@ -582,7 +676,15 @@ class LibraryIndex: # {{{1
 if __name__ == '__main__':
    options, parser = getoptions()
    sys.path.append(options.modulepath)
+   # Import modules needed for optional functionality here.
+   # This makes loading optional and errors won't stop us from running.
+   # We check if loading was successful later when logging is available.
    try:
+      if options.lircenabled:
+         try: 
+            import pylirc
+         except ImportError, error:
+            pass
       if options.daemonize:
          import daemon
          try:

@@ -6,9 +6,6 @@
  * Peter: When the last track doesn't have a genre, search the other tracks in
           the Media Player Daemon library by the same artist for a genre.
           Optionally also support multiple genres?
- * Bart: Add LIRC support for controlling mpd-myfm functions
-         (i.e. toggle album and song mode).
- * Bart: Later probably more standard mpd functions (i.e. play and next).
  * Bart: Add an option to make mpd-myfm not add long songs (i.e. uncut live
          sets or LP's), maybe disabled in album mode?
  * Peter: When :wumpscut: starts playing on Peter's MPD setup, only tracks by

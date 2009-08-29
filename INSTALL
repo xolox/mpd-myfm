@@ -7,7 +7,8 @@ a package.
 
 If you just want to run mpd-myfm manually from your home, you can copy the
 whole directory you got from git to wherever you want.
-To use a config file edit "~/.mpd-myfm".
+To use a config file edit "~/.mpd-myfm". If you want to use the lirc functions
+you should also edit "~/.lircrc".
 
 If you plan on using mpd-myfm as a daemon process running from init.d
 you have to copy a few files.
@@ -21,12 +22,12 @@ you have to copy a few files.
    And make it executable (chmod +x).
  * Then make a copy of the init.d script in "/etc/init.d/" (make 
    runlevel configurations to your likings).
- * mpd-myfm looks for a config file at /etc/mpd-myfm.conf
+ * Mpd-myfm looks for a config file at /etc/mpd-myfm.conf
+ * To use lirc you should also specify a lircrc file in the configuration.
 
 This should do it. If you have any trouble getting mpd-myfm to run from the 
 init.d script, try running it manually as root first. (this is due to issues with
-the loading of our own modules which will hopefully be resolved in the near 
-future)
+the loading of our own modules which are probably fixed now.)
 
 The config file uses a format of 'OPTION = VALUE' the options are:
   hostname  = The hostname or ip address of the mpd server. (127.0.0.1)
@@ -43,3 +44,16 @@ The config file uses a format of 'OPTION = VALUE' the options are:
   lastfmaccount = The username of your last.fm account to find loved songs.
   pidfile   = The process id file to use (ignored when started from init.d), to
               make sure you don't run more than one instance of mpd-myfm. (No pidfile)
+
+The lirc configuration commands mpd-myfm accepts are:
+
+ * 'albummode'   Toggles albummode, lets the music hiccup to let you know it 
+                 received the command.
+ * 'play'
+ * 'stop'
+ * 'pauze'
+ * 'volumeup'
+ * 'volumedown'
+ * 'next'
+ * 'prev' 
+ * 'updatedb'
