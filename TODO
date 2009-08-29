@@ -51,5 +51,9 @@
               raise socket.error, msg
             IOError: [Errno socket error] (110, 'Connection timed out')
           Maybe the main loop should be restarted when such errors occur?
+ * Bart:  If the mpd library is updated mpd-myfm can error out if it tries to add a
+          file that was deleted or moved. we should catch this and update our
+          index. This should also be done when we request a library update.
+
 
 vim: et ai
