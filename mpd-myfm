@@ -40,12 +40,12 @@ def main(options, parser):
                logger.warning('reusing stale pidfile (%s)' % options.pidfile)
                pidfile = open(options.pidfile,'w')
                pidfile.write(str(os.getpid()))
-
          except OSError, error:
             logger.error('An error ocured while creating the pidfile: %s' % error)
       else:
          pidfile = open(options.pidfile,'w')
          pidfile.write(str(os.getpid()))
+         # We close pidfile handle later so the chown below doesn't fail.
    
    if options.effectivegroup and os.getuid() == 0:
       gid = grp.getgrnam(options.effectivegroup)[2]
@@ -63,7 +63,6 @@ def main(options, parser):
       except OSError: 
          logger.exception('Could not set user to %s.' % options.effectiveuser)
          raise RuntimeError
-   # Close pidfile handle here so the above chown doesn't fail.
    pidfile.close()
    # Import local modules here so that any errors get logged to the log file.
    import lastfm
@@ -93,6 +92,7 @@ def main(options, parser):
                lovedartists.append(createkey(artist))
          for [artist, title] in lastfm.get_banned_tracks(options.lastfmaccount):
             bannedtracks.append(createkey(artist, title))
+
       logger.info("Done... Now starting main program loop.")
       if logfile:
          if options.loglevel == 1:
@@ -118,7 +118,7 @@ def main(options, parser):
             sleep(options.updatetime, logger)
          except (socket.error, mpd.ConnectionError), msgconerrer:
             # Let the user know what's going on.
-            logger.error('Lost connection? (%s)' % msgconerrer)
+            logger.error('Lost connection to mpd server? (%s)' % msgconerrer)
             # Try to close the connection in case it's still open.
             try: client.disconnect()
             except: pass
@@ -134,10 +134,11 @@ def main(options, parser):
          except:
             # TODO: get track that caused crash in error log.
             logger.exception('mpd-myfm has encountered a problem and will now exit.')
-            # Otherwise the stack gets printed by both the logging module and 
-            # by the standard python stack tracer.
+            # We raise a RuntimeError here in stead of sys.exit() otherwise the
+            # stack gets printed by both the logging module and by the standard
+            # python stack tracer.
             # Be aware that since this stack gets printed from within the main()
-            # function the main() call will be omited in the stacktrace output.
+            # function the main() call will be omitted in the stack trace.
             raise RuntimeError
             
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
@@ -155,7 +156,8 @@ def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks
       marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
       tracktoadd = weightedrandomchoice(similartracks)
       client.add(tracktoadd['file'])
-      logger.info('Added %s to play list.' % tracktoadd['file'])
+      logger.info('Added %s by %s to play list.' % (tracktoadd.get('title', 'No Title tag'), tracktoadd.get('artist', 'No Artist tag')))
+      logger.debug('From file "%s".' % tracktoadd['file'])
    else:
       logger.info('Failed to find similar track based on artist nor genre!')
 
@@ -488,11 +490,11 @@ def getoptions(): # {{{2
       defaults = parseconfigfile(os.path.expanduser(defaults['userconfig']), defaults)
 
    # Parse command line, this will override the config file settings.
-   # If a configfile is set via the command line the options defined in that configfile will
+   # If a config file is set via the command line the options defined in that config file will
    # be inserted at that point in the command line overriding any options given earlier on the commandline
-   # that also exist in the specified configfile.
+   # that also exist in the specified config file.
    parser = optparse.OptionParser(formatter=MyFmHelpFormatter())
-   parser.add_option('-c', '--configfile', help='Specify which configurationfile to use (best given as first option).', metavar='FILE', type='str', action='callback', callback=callback)
+   parser.add_option('-c', '--configfile', help='Specify which configuration file to use (best given as first option).', metavar='FILE', type='str', action='callback', callback=callback)
    parser.add_option('-H', '--host', dest='hostname', help='host name of Music Player Daemon', metavar='HOST', default=defaults['hostname'])
    parser.add_option('-p', '--port', dest='portnr', help='port number on which MPD is listening', metavar='PORT', type='int', default=defaults['portnr'])
    parser.add_option('-P', '--pass', dest='passwd', help='password for connecting with MPD', metavar='PASS', default=defaults['passwd'])
@@ -505,11 +507,11 @@ def getoptions(): # {{{2
    parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=defaults['logfile'])
    parser.add_option('-M', '--modulepath', dest='modulepath', help='Directory where the modules that came with mpd-myfm are stored.', metavar='/PATH/TO/', default=defaults['modulepath'])
    parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=defaults['daemonize'])
-   parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use', metavar='FILE', default=defaults['pidfile'])
+   parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use.', metavar='FILE', default=defaults['pidfile'])
    parser.add_option('--userid', dest='effectiveuser', help='Name of the useraccount to run as if daemonized.', metavar='USERNAME', default=defaults['effectiveuser'])
    parser.add_option('--groupid', dest='effectivegroup', help='Name of the group to run in if daemonized.', metavar='GROUPNAME', default=defaults['effectivegroup'])
    parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
-   parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get loged in the logfile (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
+   parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get loged in the logfile. (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
    (options, args) = parser.parse_args()
    
    return options, parser
@@ -600,6 +602,6 @@ if __name__ == '__main__':
       sys.exit(0)
    except ImportError, module:
       cleanup(options, None)
-      print 'An error has occured during the importing of modules: %s.' % module
+      print 'An error has occurred during the importing of modules: %s.' % module
 
 # vim: et ts=3 sw=3 fdm=marker
