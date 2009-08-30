@@ -33,6 +33,7 @@ The config file uses a format of 'OPTION = VALUE' the options are:
   hostname  = The hostname or ip address of the mpd server. (127.0.0.1)
   portnr    = The port number to use in the connection. (6600)
   passwd    = If you use a password to connect to the mpd server set it here.
+	updatetime    = The interval between updates of the mpd status. (5)
   reconnecttime = The time to wait before reconnecting on connection loss. (60)
   repeatfactor  = The number of tracks to check for the same artist, and reduce
                   the possibility of adding a song by the same artist. (20)
@@ -41,9 +42,17 @@ The config file uses a format of 'OPTION = VALUE' the options are:
   logfile   = The file to place the log messages in. (No logfile)
   daemonize = Run as daemon (ignored when started from init.d) (False)
 	verbosity = Level of output, set to 1 to see which songs get added. (0)
+	loglevel  = Level of output sent to the logfile. (0)
   lastfmaccount = The username of your last.fm account to find loved songs.
+	lircenabled = Enable lirc remote control interface. (False)
+	lircrc    = The lircrc file to read for button functions. (~/.lircrc)
   pidfile   = The process id file to use (ignored when started from init.d), to
               make sure you don't run more than one instance of mpd-myfm. (No pidfile)
+	modulepath    = Path to the directory containing the local modules. 
+                  ('/usr/local/lib/python[python_version]/site-packages/mpd-myfm')
+	effectiveuser = The username of the user to run as when daemonized.
+	effectivegroup = The name of the group to run as when daemonized.
+
 
 The lirc configuration commands mpd-myfm accepts are:
 
