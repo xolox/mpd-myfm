@@ -84,6 +84,7 @@ def main(options, parser):
       # Start lirc thread if enabled.
       if options.lircenabled:
          irrec = lircstart(options, client, index, logger)
+      else: irrec = False
       # Get the user's loved & banned tracks from Last.fm?
       lovedtracks = []
       lovedartists = []
@@ -110,7 +111,7 @@ def main(options, parser):
       while 1:
          try:
             if irrec:
-             irrec = lirccheck(irrec, client, options, logger)
+               irrec = lirccheck(irrec, client, options, logger)
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
                similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', '').decode('utf-8'))]
