@@ -229,7 +229,7 @@ def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
    for artist in similarartists:
       if artist[1] in artiststofilter:
          counter += 1
-         artist[0] = artist[0] / 5
+         artist[0] = artist[0] / 10
          demotedlist.append(artist)
       else:
          demotedlist.append(artist)
@@ -456,9 +456,10 @@ def weightedrandomchoice(items): # {{{2
    a numeric weight followed by any type of associated value.
    """
    total = 0
+   items.sort(reverse=True, key=lambda x:x[0])
    for item in items:
       total += item[0]
-   threshold = random.uniform(0.6, 1) * total 
+   threshold = random.uniform(0, 0.6) * total 
    items.sort()
    for item in items:
       threshold -= item[0]
