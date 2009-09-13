@@ -111,7 +111,7 @@ def main(options, parser):
       while 1:
          try:
             if irrec:
-               irrec = lirccheck(irrec, client, options, logger)
+               irrec = lirccheck(irrec, client, options, index, logger)
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
                similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', '').decode('utf-8'))]
@@ -410,10 +410,10 @@ def lircstart(options, client, index, logger): # {{{2
       irrec = False # Set irrec to false to avoid variable not set errors.
    return irrec
 
-def lirccheck(irrec, client, options, logger): # {{{2
+def lirccheck(irrec, client, options, index, logger): # {{{2
    if(options.lircenabled and irrec.isAlive() == 0):
       logger.warning('The lirc thread died, restarting it.')
-      irrec = IRRec(options, client, logger)
+      irrec = IRRec(options, client, index, logger)
       irrec.start()
    return irrec
 
