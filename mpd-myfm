@@ -37,7 +37,7 @@ def main(options, parser):
                else:
                   logger.warning('Not using pidfile, since it is already in use by another process')
                   options.pidfile = ''
-            else: 
+            else:
                logger.warning('reusing stale pidfile (%s)' % options.pidfile)
                pidfile = open(options.pidfile,'w')
                pidfile.write(str(os.getpid()))
@@ -47,13 +47,13 @@ def main(options, parser):
          pidfile = open(options.pidfile,'w')
          pidfile.write(str(os.getpid()))
          # We close pidfile handle later so the chown below doesn't fail.
-   
+
    if options.effectivegroup and os.getuid() == 0:
       gid = grp.getgrnam(options.effectivegroup)[2]
       try: os.chown(options.pidfile, -1, gid)
       except OSError: logger.exception('Could not change group of %s.' % options.pidfile)
       try: os.setgid(gid)
-      except OSError: 
+      except OSError:
          logger.exception('Could not set group to %s.' % options.effectivegroup)
          raise RuntimeError
    if options.effectiveuser and os.getuid() == 0:
@@ -61,7 +61,7 @@ def main(options, parser):
       try: os.chown(options.pidfile, uid, -1)
       except OSError: logger.exception('Could not change ownership of %s.' % options.pidfile)
       try: os.setuid(uid)
-      except OSError: 
+      except OSError:
          logger.exception('Could not set user to %s.' % options.effectiveuser)
          raise RuntimeError
    pidfile.close()
@@ -153,7 +153,7 @@ def main(options, parser):
             # Be aware that since this stack gets printed from within the main()
             # function the main() call will be omitted in the stack trace.
             raise RuntimeError
-            
+
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
    similartracks = findsimilartracks(index, similarartists)
    similartracks = filterduplicates(client, repeatfactor, similartracks)
@@ -215,7 +215,7 @@ def filterduplicates(client, repeatfactor, tracks): # {{{1
 def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
    """
    Make it less likely that a song from an artist who is already in the last
-   'repeatfactor' songs. We do not ban them because that would make it very 
+   'repeatfactor' songs. We do not ban them because that would make it very
    hard to find similar songs after a while.
    """
    trackstofilter = client.playlistinfo()
@@ -284,7 +284,7 @@ def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
          record[0] += 10
          nlovedartists += 1
    if nlovedtracks > 0:
-      logger.debug('Marked %i loved tracks from Last.fm' % nlovedtracks) 
+      logger.debug('Marked %i loved tracks from Last.fm' % nlovedtracks)
    if nlovedartists > 0:
       logger.debug('Marked %i tracks by loved artists from Last.fm' % nlovedtracks)
 
@@ -370,7 +370,7 @@ class IRRec(threading.Thread): # {{{2
                               break
                         except mpd.CommandError:
                            sleep(1, self.logger)
-                        
+
                      # TODO: Get notified when finished and reload library.
          else:
             self.exit()
@@ -391,11 +391,11 @@ class IRRec(threading.Thread): # {{{2
          pylirc.exit()
          sys.exit()
 
-  
+
 def lircstart(options, client, index, logger): # {{{2
    try:
       # Check if the pylirc module is available in namespace.
-      if pylirc and os.path.exists(os.path.expanduser(options.lircrc)): 
+      if pylirc and os.path.exists(os.path.expanduser(options.lircrc)):
          irrec = IRRec(client, options, index, logger)
          irrec.start()
       else :
@@ -406,7 +406,7 @@ def lircstart(options, client, index, logger): # {{{2
    except NameError:
       logger.error('Could not load the pylirc module needed for lirc support.')
       logger.info('Will continue without lirc support.')
-      options.lircenabled = False 
+      options.lircenabled = False
       irrec = False # Set irrec to false to avoid variable not set errors.
    return irrec
 
@@ -441,7 +441,7 @@ def simplifyname(string): # {{{2
       result = re.sub('\s+', ' ', result)
       _cachednames[string] = result
       return result
- 
+
 _cachednames = {}
 
 def simplecompare(left, right): # {{{2
@@ -460,7 +460,7 @@ def weightedrandomchoice(items): # {{{2
    items.sort(reverse=True, key=lambda x:x[0])
    for item in items:
       total += item[0]
-   threshold = random.uniform(0, 0.6) * total 
+   threshold = random.uniform(0, 0.6) * total
    items.sort()
    for item in items:
       threshold -= item[0]
@@ -523,10 +523,10 @@ def cleanup(options, logger): # {{{2
          logger.error('Could not remove pidfile: %s' % options.pidfile)
 
 def getoptions(): # {{{2
-   
+
    def setdefaults(): # {{{3
       # Define option defaults.
-      defaults = { 
+      defaults = {
             'hostname': '127.0.0.1',
             'portnr': 6600,
             'passwd': '',
@@ -544,11 +544,11 @@ def getoptions(): # {{{2
             'lircrc': '~/.lircrc',
             'lircenabled': False,
             'userconfig': '~/.mpd-myfm',
-            'configfile': '/etc/mpd-myfm.conf', 
+            'configfile': '/etc/mpd-myfm.conf',
             'modulepath': '/usr/local/lib/python%s/site-packages/mpd-myfm' % sys.version[:3],
             'effectiveuser': '',
             'effectivegroup': ''}
-    
+
       return defaults
 
    def callback(option, opt_str, value, parshandle): # {{{3
@@ -566,34 +566,34 @@ def getoptions(): # {{{2
                optkey, optarg = line.split('=')
                optkey = optkey.lower()
                if parser:
-                  if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
+                  if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount':
                      setattr(parser.values, optkey, optarg)
                   elif re.match('[0-9]', optarg):
                      setattr(parser.values, optkey, int(optarg))
                   else:
                      setattr(parser.values, optkey, optarg)
                else:
-                  if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount': 
+                  if optkey == 'hostname' or optkey == 'passwd' or optkey == 'lastfmaccount':
                      defaults[optkey]=optarg
                   elif re.match('[0-9]', optarg):
                      defaults[optkey]=int(optarg)
                   else:
                      defaults[optkey]=optarg
-      return defaults 
-   
+      return defaults
+
    # }}}
 
    class MyFmHelpFormatter (optparse.HelpFormatter): # {{{3
       """Format help with underlined section headers.
       """
-      
+
       try:
          rows, columns = os.popen('stty size 2> /dev/null', 'r').read().split()
       except:
          columns = 80
       finally:
          columns = int(columns) - 5
-      
+
       def __init__(self,
                    indent_increment=2,
                    max_help_position=35,
@@ -643,7 +643,7 @@ def getoptions(): # {{{2
    parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
    parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get loged in the logfile. (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
    (options, args) = parser.parse_args()
-   
+
    return options, parser
 
 class LibraryIndex: # {{{1
@@ -672,14 +672,14 @@ class LibraryIndex: # {{{1
          values = track[field]
          # track['genre'] can be a list of genres..
          if type(values) != type([]): values = [values]
-         # and it may contain duplicates?! :-\ 
+         # and it may contain duplicates?! :-\
          for value in unique(values):
             key = simplifyname(value)
             if key != '':
                if not index.has_key(key):
                   index[key] = []
                index[key].append(track)
-   
+
    def findtracksbyartist(self, artistname): # {{{2
       artistkey = simplifyname(artistname)
       return self.__tracks_by_artists.get(artistkey, [])
@@ -717,7 +717,7 @@ if __name__ == '__main__':
    # We check if loading was successful later when logging is available.
    try:
       if options.lircenabled:
-         try: 
+         try:
             import pylirc
          except ImportError, error:
             pass
