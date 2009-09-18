@@ -98,6 +98,7 @@ def main(options, parser):
             bannedtracks.append(createkey(artist, title))
 
       logger.info("Done... Now starting main program loop.")
+      similarartists_retry = 0
       while 1:
          try:
             if irrec:
@@ -105,6 +106,7 @@ def main(options, parser):
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
                similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''), logger=logger)]
+               similarartists_retry = 0
                similarartists = []
                for artist in similarartists_complex:
                   similarartists.append([artist[0], simplifyname(artist[1])])
@@ -113,6 +115,18 @@ def main(options, parser):
                   addtrack(client, index, lasttrack, similarartists, options.repeatfactor, lovedtracks, lovedartists, bannedtracks, logger)
             # Sleep for a while before trying to update again.
             sleep(options.updatetime, logger)
+         except (IOError):
+            # HTTP protocol error: Got a bad status line from Last.fm trying to
+            # retrieve similar artists. Retry a few times before exiting.
+            similarartists_retry += 1
+            similarartists_retry_max = 3
+            # TODO Make the number of retries configurable.
+            if similarartists_retry <= similarartists_retry_max:
+               logger.warning('Lost connection to Last.fm, retrying')
+            else:
+               logger.warning('Lost connection to Last.fm %i times, exiting.', similarartists_retry_max)
+               quit(options, irrec, logger)
+               sys.exit(1)
          except (socket.error, mpd.ConnectionError), msgconerrer:
             # Let the user know what's going on.
             logger.error('Lost connection to mpd server? (%s)', msgconerrer)
