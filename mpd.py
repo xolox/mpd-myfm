@@ -21,6 +21,7 @@ HELLO_PREFIX = "OK MPD "
 ERROR_PREFIX = "ACK "
 SUCCESS = "OK"
 NEXT = "list_OK"
+PROTOCOL_ENCODING = "UTF-8"
 
 
 class MPDError(Exception):
@@ -147,11 +148,11 @@ class MPDClient(object):
     def _writecommand(self, command, args=[]):
         parts = [command]
         for arg in args:
-            parts.append('"%s"' % escape(str(arg)))
+            parts.append('"%s"' % escape(arg.encode(PROTOCOL_ENCODING)))
         self._writeline(" ".join(parts))
 
     def _readline(self):
-        line = self._rfile.readline()
+        line = self._rfile.readline().decode(PROTOCOL_ENCODING)
         if not line.endswith("\n"):
             raise ConnectionError("Connection lost while reading line")
         line = line.rstrip("\n")
