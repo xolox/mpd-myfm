@@ -60,7 +60,11 @@ def main(options, parser):
       except OSError:
          logger.exception('Could not set user to %s.' % options.effectiveuser)
          raise RuntimeError
-   pidfile.close()
+
+   # Don't close the PID file unless it was actually opened!
+   if options.pidfile:
+      pidfile.close()
+
    # Import local modules here so that any errors get logged to the log file.
    import lastfm
 
