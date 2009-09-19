@@ -352,9 +352,9 @@ class IRRec(threading.Thread): # {{{2
                      self.pushconfirmation()
                      self.logger.info('toggled album mode to %s.', options.albummode)
                   elif code == 'volumeup':
-                     self.client.volume(1)
+                     self.client.volume('1')
                   elif code == 'volumedown':
-                     self.client.volume(-1)
+                     self.client.volume('-1')
                   elif code == 'pause':
                      self.client.pause()
                   elif code == 'stop':
