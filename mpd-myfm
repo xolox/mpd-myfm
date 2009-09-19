@@ -67,6 +67,8 @@ def main(options, parser):
    # Import local modules here so that any errors get logged to the log file.
    import lastfm
 
+   # Create locker object for communication to the mpd server.
+   comlock = threading.RLock()
    client = mpd.MPDClient()
    if not connect(client, options.hostname, options.portnr, options.passwd):
       logger.error("Failed to connect to MPD server at `%s' on port `%i'", options.hostname, options.portnr)
@@ -82,7 +84,7 @@ def main(options, parser):
       index = LibraryIndex(client)
       # Start lirc thread if enabled.
       if options.lircenabled:
-         irrec = lircstart(options, client, index, logger)
+         irrec = lircstart(options, client, index, comlock, logger)
       else: irrec = False
       # Get the user's loved & banned tracks from Last.fm?
       lovedtracks = []
@@ -102,7 +104,8 @@ def main(options, parser):
       while 1:
          try:
             if irrec:
-               irrec = lirccheck(irrec, client, options, index, logger)
+               irrec = lirccheck(irrec, client, options, index, comlock, logger)
+            comlock.acquire()
             if clientenabled(client.status(), options.songsleft, logger):
                lasttrack = client.playlistinfo()[-1]
                similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''), logger=logger)]
@@ -113,6 +116,7 @@ def main(options, parser):
                similarartists = demoteplayedartists(client, options.repeatfactor, similarartists, logger)
                if not options.albummode or not addalbum(client, index, similarartists, logger):
                   addtrack(client, index, lasttrack, similarartists, options.repeatfactor, lovedtracks, lovedartists, bannedtracks, logger)
+            comlock.release()
             # Sleep for a while before trying to update again.
             sleep(options.updatetime, logger)
          except (IOError):
@@ -313,12 +317,13 @@ def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
 class IRRec(threading.Thread): # {{{2
    """Threading class for polling lircd, it will set a class instance of 'keypressed'."""
    keypressed = []
-   def __init__(self, client, options, index, logger):
+   def __init__(self, client, options, index, comlock, logger):
       threading.Thread.__init__(self)
       self.client = client
       self.options = options
       self.index = index
       self.logger = logger
+      self.comlock = comlock
 
    def run(self): # {{{3
       try:
@@ -339,6 +344,7 @@ class IRRec(threading.Thread): # {{{2
             code = ''
             s = pylirc.nextcode()
             if(s):
+               self.comlock.acquire()
                for code in s:
                   if code == 'albummode':
                      if self.options.albummode: options.albummode = False
@@ -373,8 +379,8 @@ class IRRec(threading.Thread): # {{{2
                               break
                         except mpd.CommandError:
                            sleep(1, self.logger)
-
                      # TODO: Get notified when finished and reload library.
+               self.comlock.release()
          else:
             self.exit()
       except (SystemExit, KeyboardInterrupt):
@@ -395,11 +401,11 @@ class IRRec(threading.Thread): # {{{2
          sys.exit()
 
 
-def lircstart(options, client, index, logger): # {{{2
+def lircstart(options, client, index, comlock, logger): # {{{2
    try:
       # Check if the pylirc module is available in namespace.
       if pylirc and os.path.exists(os.path.expanduser(options.lircrc)):
-         irrec = IRRec(client, options, index, logger)
+         irrec = IRRec(client, options, index, comlock, logger)
          irrec.start()
       else :
          logger.warning('Could not find lircrc file: %s.', options.lircrc)
@@ -413,9 +419,9 @@ def lircstart(options, client, index, logger): # {{{2
       irrec = False # Set irrec to false to avoid variable not set errors.
    return irrec
 
-def lirccheck(irrec, client, options, index, logger): # {{{2
+def lirccheck(irrec, client, options, index, comlock, logger): # {{{2
    if(options.lircenabled and irrec.isAlive() == 0):
-      irrec = IRRec(options, client, index, logger)
+      irrec = IRRec(options, client, index, comlock, logger)
       logger.warning('The LIRC thread died, restarting it.')
       irrec.start()
    return irrec
