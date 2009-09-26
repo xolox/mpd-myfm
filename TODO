@@ -54,6 +54,7 @@
  * Bart:  If the mpd library is updated mpd-myfm can error out if it tries to add a
           file that was deleted or moved. we should catch this and update our
           index. This should also be done when we request a library update.
-
+ * Peter: ^^^ Handle mpd.CommandError for missing files:
+          CommandError: [50@0] {add} directory or file not found
 
 vim: et ai

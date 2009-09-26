@@ -3,12 +3,10 @@
 #Import with statement from __future__ to support python 2.5
 from __future__ import with_statement
 import grp
-import logging
-import mpd
+import logging # Chicken & egg problem :x
 import optparse
 import os
 import pwd
-import random
 import re
 import socket
 import sys
@@ -65,7 +63,11 @@ def main(options, parser):
       pidfile.close()
 
    # Import local modules here so that any errors get logged to the log file.
-   import lastfm
+   import myfm
+   import mpd
+
+   # Initialize the play list generator.
+   myfm = myfm.MyFM(logger=logger)
 
    # Create locker object for communication to the mpd server.
    comlock = threading.RLock()
@@ -81,56 +83,29 @@ def main(options, parser):
    else:
       logger.info("Building the Music Player Daemon library index")
       # Create an index from the user's library.
-      index = LibraryIndex(client)
+      myfm.index.load(client.listallinfo())
       # Start lirc thread if enabled.
       if options.lircenabled:
-         irrec = lircstart(options, client, index, comlock, logger)
+         irrec = lircstart(options, client, myfm, comlock, logger)
       else: irrec = False
+
       # Get the user's loved & banned tracks from Last.fm?
-      lovedtracks = []
-      lovedartists = []
-      bannedtracks = []
       if options.lastfmaccount:
          logger.info("Scraping last.fm for user's loved and banned tracks")
-         for [artist, title] in lastfm.get_loved_tracks(options.lastfmaccount, logger=logger):
-            lovedtracks.append(createkey(artist, title))
-            if artist != 'Various Artists' and not artist in lovedartists:
-               lovedartists.append(createkey(artist))
-         for [artist, title] in lastfm.get_banned_tracks(options.lastfmaccount, logger=logger):
-            bannedtracks.append(createkey(artist, title))
+         myfm.getLovedTracks(options.lastfmaccount)
 
       logger.info("Done... Now starting main program loop.")
-      similarartists_retry = 0
       while 1:
          try:
             if irrec:
-               irrec = lirccheck(irrec, client, options, index, comlock, logger)
+               irrec = lirccheck(irrec, client, options, myfm, comlock, logger)
             comlock.acquire()
             if clientenabled(client.status(), options.songsleft, logger):
-               lasttrack = client.playlistinfo()[-1]
-               similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''), logger=logger)]
-               similarartists_retry = 0
-               similarartists = []
-               for artist in similarartists_complex:
-                  similarartists.append([artist[0], simplifyname(artist[1])])
-               similarartists = demoteplayedartists(client, options.repeatfactor, similarartists, logger)
-               if not options.albummode or not addalbum(client, index, similarartists, logger):
-                  addtrack(client, index, lasttrack, similarartists, options.repeatfactor, lovedtracks, lovedartists, bannedtracks, logger)
+               for filename in myfm.getTracks(client.playlist()):
+                  client.add(filename)
             comlock.release()
             # Sleep for a while before trying to update again.
             sleep(options.updatetime, logger)
-         except (IOError):
-            # HTTP protocol error: Got a bad status line from Last.fm trying to
-            # retrieve similar artists. Retry a few times before exiting.
-            similarartists_retry += 1
-            similarartists_retry_max = 3
-            # TODO Make the number of retries configurable.
-            if similarartists_retry <= similarartists_retry_max:
-               logger.warning('Lost connection to Last.fm, retrying')
-            else:
-               logger.warning('Lost connection to Last.fm %i times, exiting.', similarartists_retry_max)
-               quit(options, irrec, logger)
-               sys.exit(1)
          except (socket.error, mpd.ConnectionError), msgconerrer:
             # Let the user know what's going on.
             logger.error('Lost connection to mpd server? (%s)', msgconerrer)
@@ -162,89 +137,6 @@ def quit(options, irrec, logger): # {{{1
    if irrec:
       irrec.join()
 
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
-   similartracks = findsimilartracks(index, similarartists)
-   similartracks = filterduplicates(client, repeatfactor, similartracks)
-   removebannedtracks(bannedtracks, similartracks, logger)
-   # TODO Make threshold configurable?
-   if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
-      logger.info("Adding track based on same genre `%s'.", lasttrack['genre'])
-      for track in index.findtracksingenre(lasttrack['genre']):
-         similartracks.append([1, track])
-      similartracks = filterduplicates(client, repeatfactor, similartracks)
-      removebannedtracks(bannedtracks, similartracks, logger)
-   if len(similartracks) >= 1:
-      marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
-      tracktoadd = weightedrandomchoice(similartracks)
-      client.add(tracktoadd['file'])
-      logger.info('Added %s by %s to play list.', tracktoadd.get('title', 'No Title tag'), tracktoadd.get('artist', 'No Artist tag'))
-      logger.debug('From file "%s".', tracktoadd['file'])
-   else:
-      logger.info('Failed to find similar track based on artist nor genre!')
-
-def addalbum(client, index, similarartists, logger): # {{{1
-   similaralbums = findsimilaralbums(index, similarartists)
-   if len(similaralbums) <= 1:
-      logger.info('Could not find any albums from similar artists, trying one lose track now.')
-      logger.info('I will try an album again after that.')
-      return False
-   albumtoadd = weightedrandomchoice(similaralbums)
-   trackstoload = index.findtracksinalbum(albumtoadd[0], albumtoadd[1])
-   logger.info("Adding %i tracks in album `%s' by artist `%s'", len(trackstoload), albumtoadd[1], albumtoadd[0])
-   for track in trackstoload:
-      client.add(track['file'])
-   return True
-
-def findsimilaralbums(index, similarartists): # {{{1
-   """
-   Return a list of albums in the Music Player Daemon library from any of the
-   given artists. The numeric similarity associated with each artist is copied
-   to all albums by that artist.
-   """
-   albums = []
-   for [similarity, artistname] in similarartists:
-      for albumname in index.findalbumsbyartist(artistname):
-            albums.append([similarity, [artistname, albumname]])
-   return albums
-
-def filterduplicates(client, repeatfactor, tracks): # {{{1
-   """
-   Make sure a track is never repeated before a configurable number of other
-   tracks (by default 20) has been played. The number of tracks can be set
-   using the -s or --songs command-line argument.
-   """
-   trackstofilter = client.playlist()
-   if len(trackstofilter) < repeatfactor:
-      repeatfactor = len(trackstofilter)
-   trackstofilter = trackstofilter[-repeatfactor : -1]
-   return [t for t in tracks if not t[1]['file'] in trackstofilter]
-
-def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
-   """
-   Make it less likely that a song from an artist who is already in the last
-   'repeatfactor' songs. We do not ban them because that would make it very
-   hard to find similar songs after a while.
-   """
-   trackstofilter = client.playlistinfo()
-   if len(trackstofilter) < repeatfactor:
-      repeatfactor = len(trackstofilter)
-   trackstofilter = trackstofilter[-repeatfactor : -1]
-   artiststofilter = []
-   for track in trackstofilter:
-      artiststofilter.append(simplifyname(track.get('artist', '')))
-   demotedlist = []
-   counter = 0
-   for artist in similarartists:
-      if artist[1] in artiststofilter:
-         counter += 1
-         artist[0] = artist[0] / 10
-         demotedlist.append(artist)
-      else:
-         demotedlist.append(artist)
-   if counter > 0:
-      logger.debug('demoted %i artists because they have recently been played.', counter)
-   return demotedlist
-
 def clientenabled(status, songsleft, logger): # {{{1
    if int(status['playlistlength']) == 0:
       logger.log(7, "Doing nothing because play list is empty.")
@@ -261,67 +153,16 @@ def clientenabled(status, songsleft, logger): # {{{1
       return False
    return True
 
-def findsimilartracks(index, similarartists): # {{{1
-   """
-   Return a list of tracks in the Music Player Daemon library from any of the
-   given artists. The numeric similarity associated with each artist is copied
-   to all tracks by that artist.
-   """
-   tracks = []
-   for [similarity, artistname] in similarartists:
-      for track in index.findtracksbyartist(artistname):
-         tracks.append([similarity, track])
-   return tracks
-
-def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
-   """
-   Go through the similar tracks and increase the weights of favorite tracks
-   and artists.
-   """
-   nlovedtracks = 0
-   nlovedartists = 0
-   for record in similartracks:
-      similarity, track = record
-      if track.get('artist', '') != '' and track.get('title', '') != '' and \
-            createkey(track['artist'], track['title']) in lovedtracks:
-         record[0] += 25
-         nlovedtracks += 1
-      elif track.get('artist', '') != '' and \
-            createkey(track['artist']) in lovedartists:
-         record[0] += 10
-         nlovedartists += 1
-   if nlovedtracks > 0:
-      logger.debug('Marked %i loved tracks from Last.fm', nlovedtracks)
-   if nlovedartists > 0:
-      logger.debug('Marked %i tracks by loved artists from Last.fm', nlovedtracks)
-
-def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
-   """
-   Go through the similar tracks and remove all banned tracks.
-   """
-   nbannedtracks = 0
-   index = 0
-   while index < len(similartracks):
-      weight, track = similartracks[index]
-      if track.get('artist', '') != '' and track.get('title', '') != '' and \
-            createkey(track['artist'], track['title']) in bannedtracks:
-         del similartracks[index]
-         nbannedtracks += 1
-      else:
-         index += 1
-   if nbannedtracks > 0:
-      logger.debug('Ignored %i banned track(s) from Last.fm', nbannedtracks)
-
 # Lirc support. {{{1
 
 class IRRec(threading.Thread): # {{{2
    """Threading class for polling lircd, it will set a class instance of 'keypressed'."""
    keypressed = []
-   def __init__(self, client, options, index, comlock, logger):
+   def __init__(self, client, options, myfm, comlock, logger):
       threading.Thread.__init__(self)
       self.client = client
       self.options = options
-      self.index = index
+      self.myfm = myfm
       self.logger = logger
       self.comlock = comlock
 
@@ -374,8 +215,7 @@ class IRRec(threading.Thread): # {{{2
                            c = self.client.update()
                            if c > i:
                               self.logger.info('The Music Player Daemon library has been updated')
-                              self.index = LibraryIndex(self.client)
-                              #TODO: Update our own index.
+                              self.myfm.index.load(self.client.listallinfo())
                               break
                         except mpd.CommandError:
                            sleep(1, self.logger)
@@ -401,11 +241,11 @@ class IRRec(threading.Thread): # {{{2
          sys.exit()
 
 
-def lircstart(options, client, index, comlock, logger): # {{{2
+def lircstart(options, client, myfm, comlock, logger): # {{{2
    try:
       # Check if the pylirc module is available in namespace.
       if pylirc and os.path.exists(os.path.expanduser(options.lircrc)):
-         irrec = IRRec(client, options, index, comlock, logger)
+         irrec = IRRec(client, options, myfm, comlock, logger)
          irrec.start()
       else :
          logger.warning('Could not find lircrc file: %s.', options.lircrc)
@@ -419,73 +259,18 @@ def lircstart(options, client, index, comlock, logger): # {{{2
       irrec = False # Set irrec to false to avoid variable not set errors.
    return irrec
 
-def lirccheck(irrec, client, options, index, comlock, logger): # {{{2
+def lirccheck(irrec, client, options, myfm, comlock, logger): # {{{2
    if(options.lircenabled and irrec.isAlive() == 0):
-      irrec = IRRec(options, client, index, comlock, logger)
+      irrec = IRRec(options, client, myfm, comlock, logger)
       logger.warning('The LIRC thread died, restarting it.')
       irrec.start()
    return irrec
 
 # Miscellaneous functions. {{{1
 
-def createkey(*args): # {{{2
-   """
-   Simplify a list of strings (one or more of artist name, album name, track
-   title) into a single string using the simplifyname() function.
-   """
-   return '-'.join(map(simplifyname, args))
-
-def simplifyname(string): # {{{2
-   """
-   Simplify artist names for fuzzy matching.
-   """
-   global _cachednames
-   if _cachednames.has_key(string):
-      return _cachednames[string]
-   else:
-      result = string.lower()
-      result = re.sub('^the\s+', '', result)
-      result = re.sub(',\s+the$', '', result)
-      result = re.sub('[^a-z0-9 -]', '', result)
-      result = re.sub('\s+', ' ', result)
-      _cachednames[string] = result
-      return result
-
-_cachednames = {}
-
-def simplecompare(left, right): # {{{2
-   """
-   Compare two strings using the simplifyname() function and return True when
-   they are equal.
-   """
-   return simplifyname(left) == simplifyname(right)
-
-def weightedrandomchoice(items): # {{{2
-   """
-   Pick a weighted random value from a list of lists, where each list contains
-   a numeric weight followed by any type of associated value.
-   """
-   total = 0
-   items.sort(reverse=True, key=lambda x:x[0])
-   for item in items:
-      total += item[0]
-   threshold = random.uniform(0, 0.6) * total
-   items.sort()
-   for item in items:
-      threshold -= item[0]
-      if threshold <= 0:
-         return item[1]
-
 def sleep(seconds, logger): # {{{2
    logger.log(5, 'Sleeping for %i seconds', seconds)
    time.sleep(seconds)
-
-def unique(list): # {{{2
-    result = []
-    for item in list:
-        if item not in result:
-            result.append(item)
-    return result
 
 def createlog(options): # {{{2
    logger = logging.Logger()
@@ -633,67 +418,6 @@ def getoptions(): # {{{2
    (options, args) = parser.parse_args()
 
    return options, parser
-
-class LibraryIndex: # {{{1
-
-   def __init__(self, mpdclient): # {{{2
-      self.__tracks_by_artists = {}
-      self.__tracks_in_genres = {}
-      self.__albums_by_artists  = {}
-      self.__tracks_in_albums = {}
-      for track in mpdclient.listallinfo():
-         self.__addtoindex('artist', track, self.__tracks_by_artists)
-         self.__addtoindex('genre', track, self.__tracks_in_genres)
-         if track.get('artist', '') != '' and track.get('album', '') != '':
-            artistkey = simplifyname(track['artist'])
-            if not self.__albums_by_artists.has_key(artistkey):
-               self.__albums_by_artists[artistkey] = []
-            if track['album'] not in self.__albums_by_artists[artistkey]:
-               self.__albums_by_artists[artistkey].append(track['album'])
-            albumkey = createkey(track['artist'], track['album'])
-            if not self.__tracks_in_albums.has_key(albumkey):
-               self.__tracks_in_albums[albumkey] = []
-            self.__tracks_in_albums[albumkey].append(track)
-
-   def __addtoindex(self, field, track, index): # {{{2
-      if field in track:
-         values = track[field]
-         # track['genre'] can be a list of genres..
-         if type(values) != type([]): values = [values]
-         # and it may contain duplicates?! :-\
-         for value in unique(values):
-            key = simplifyname(value)
-            if key != '':
-               if not index.has_key(key):
-                  index[key] = []
-               index[key].append(track)
-
-   def findtracksbyartist(self, artistname): # {{{2
-      artistkey = simplifyname(artistname)
-      return self.__tracks_by_artists.get(artistkey, [])
-
-   def findtracksingenre(self, genrename): # {{{2
-      genrekey = simplifyname(genrename)
-      return self.__tracks_in_genres.get(genrekey, [])
-
-   def findalbumsbyartist(self, artistname): # {{{2
-      artistkey = simplifyname(artistname)
-      return self.__albums_by_artists.get(artistkey, [])
-
-   def findtracksinalbum(self, artistname, albumname): # {{{2
-      albumkey = createkey(artistname, albumname)
-      tracks = self.__tracks_in_albums.get(albumkey, [])
-      tracks.sort(self.__sortalbumtracks)
-      return tracks
-
-   def __sortalbumtracks(self, x, y):
-      return cmp(self.__gettracknr(x), self.__gettracknr(y))
-
-   def __gettracknr(self, track):
-      if track.get('track', '') != '':
-         match = re.match('^\d+', track['track'])
-         return int(match.group())
-      return 0
 
 # }}}1
 
