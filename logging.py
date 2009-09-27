@@ -2,6 +2,9 @@ import sys, time, traceback
 
 class Logger: # {{{1
 
+   def __init__(self, interactive=True):
+      self.interactive = interactive
+
    # Class constants. {{{2
    LEVEL_ERROR = 0
    LEVEL_WARNING = 1
@@ -11,7 +14,7 @@ class Logger: # {{{1
 
    # Instance properties. {{{2
    logLevel = 4
-   fileHandle = sys.stdout
+   fileHandle = ''
    outputEncoding = 'UTF-8'
 
    def setLevel(self, level): # {{{2
@@ -19,8 +22,8 @@ class Logger: # {{{1
       self.logLevel = level
 
    def setFile(self, filename):  # {{{2
-      """ Set the file to which messages will be logged (sys.stdout by default). """
-      self.fileHandle = open(filename, 'a')
+      """ Set the file to which messages will be logged. """
+      self.fileHandle = open(filename, 'a', 0)
 
    def log(self, level, message, *args): # {{{2
       """ Log a formatted message with a custom level. """
@@ -54,11 +57,11 @@ class Logger: # {{{1
             message = 'INFO ' + message
          elif level == self.LEVEL_DEBUG:
             message = 'DEBUG ' + message
-         if self.fileHandle not in (sys.stdout, sys.stderr):
+         if self.interactive:
+            sys.stdout.write(message.encode(self.outputEncoding) + '\n')
+         if self.fileHandle:
             message = time.strftime('%Y-%m-%d %H:%M:%S ') + message
-         message = message.encode(self.outputEncoding)
-         self.fileHandle.write(message + '\n')
-         self.fileHandle.flush()
+            self.fileHandle.write(message.encode(self.outputEncoding) + '\n')
 
    def __printException(self):
       ei = sys.exc_info()
