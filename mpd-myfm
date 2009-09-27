@@ -101,7 +101,7 @@ def main(options, parser):
                irrec = lirccheck(irrec, client, options, myfm, comlock, logger)
             comlock.acquire()
             if clientenabled(client.status(), options.songsleft, logger):
-               for filename in myfm.getTracks(client.playlist()):
+               for filename in myfm.getNextTracks(client.playlist()):
                   client.add(filename)
             comlock.release()
             # Sleep for a while before trying to update again.
