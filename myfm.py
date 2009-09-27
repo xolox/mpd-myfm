@@ -1,3 +1,5 @@
+# encoding=utf-8
+
 # Standard library modules.
 import random
 import re
