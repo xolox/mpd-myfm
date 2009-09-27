@@ -326,14 +326,6 @@ class LibraryIndex:
    def __sortAlbumTracks(self, x, y):
       return cmp(self.__getTrackNr(x), self.__getTrackNr(y))
 
-   # FIXME This is MPD specific -- make ['track'] an integer instead.
-
-   def __getTrackNr(self, track):
-      if track.get('track', '') != '':
-         match = re.match('^\d+', track['track'])
-         return int(match.group())
-      return 0
-
 # Miscellaneous functions. {{{1
 
 def createkey(*args):

@@ -83,7 +83,7 @@ def main(options, parser):
    else:
       logger.info("Building the Music Player Daemon library index")
       # Create an index from the user's library.
-      myfm.index.load(client.listallinfo())
+      myfm.index.load(getLibraryInfo(client))
       # Start lirc thread if enabled.
       if options.lircenabled:
          irrec = lircstart(options, client, myfm, comlock, logger)
@@ -286,6 +286,14 @@ def connect(client, hostname, portnr, passwd): # {{{2
       return True
    except socket.error:
       return False
+
+def getLibraryInfo(client): # {{{2
+   library = client.listallinfo()
+   for track in library:
+      if track.get('track', '') != '':
+         match = re.match('^\d+', track['track'])
+         track['track'] = int(match.group())
+   return library
 
 def cleanup(options, logger): # {{{2
    try:
