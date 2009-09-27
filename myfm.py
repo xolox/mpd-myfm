@@ -101,6 +101,7 @@ class MyFM: # {{{1
       """
       artistsToDemote = []
       for filename in playlist:
+         track = self.index.findTrackInfo(filename)
          artistsToDemote.append(simplifyname(track.get('artist', '')))
       numDemoted = 0
       for artistKey, similarity in artists.iteritems():
