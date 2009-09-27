@@ -250,7 +250,9 @@ class LibraryIndex:
       self.__infoForFileNames = {}
       for trackInfo in tracks:
          # Save the track info under the filename.
-         self.__infoForFileNames[trackInfo['filename']] = track
+         # Filter everything that doesn't specify a filename out.
+         if 'filename' in trackInfo:
+            self.__infoForFileNames[trackInfo['filename']] = trackInfo
          # Save the track info under the artist name.
          artistKey = simplifyname(trackInfo.get('artist', ''))
          if artistKey != '':
