@@ -222,6 +222,19 @@ class MyFM: # {{{1
       if numBannedTracks > 0:
          self.logger.debug('Ignored %i banned track(s) from Last.fm', numBannedTracks)
 
+   # Below here should be good for now!! {{{1
+
+   def __ignorePlayedTracks(self, lasttracks, similarTracks):
+      """
+      Remove tracks played in the [repeatfactor] last tracks of the playlist
+      from the list of songs to consider.
+      lasttracks should be a list of filenames from the playlist
+      similarTracks should be a dict with key=file value=weight
+      """
+      for track in lasttracks:
+         if track in similarTracks:
+            del similarTracks[track]
+
    def toggleAlbum_mode(self):
       if self.album_mode: self.album_mode = False
       else: self.album_mode = True
