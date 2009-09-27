@@ -347,7 +347,7 @@ def simplifyname(string):
       result = string.lower()
       result = re.sub('^the\s+', '', result)
       result = re.sub(',\s+the$', '', result)
-      result = re.sub('[^a-z0-9 -]', '', result)
+      result = re.sub('[(?:{Lu}{Ll}+) -]', '', result)
       result = re.sub('\s+', ' ', result)
       _cachednames[string] = result
       return result
