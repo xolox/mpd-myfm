@@ -188,10 +188,8 @@ class IRRec(threading.Thread): # {{{2
                self.comlock.acquire()
                for code in s:
                   if code == 'albummode':
-                     if self.options.albummode: options.albummode = False
-                     else: self.options.albummode = True
                      self.pushconfirmation()
-                     self.logger.info('toggled album mode to %s.', options.albummode)
+                     self.logger.info('toggled album mode to %s.', self.toggleAlbum_mode)
                   elif code == 'volumeup':
                      self.client.volume(1)
                   elif code == 'volumedown':
