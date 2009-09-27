@@ -181,7 +181,7 @@ class MyFM: # {{{1
          for genreName in genrelist(trackInfo.get('genre', '')):
             genreKey = simplifyname(genreName)
             if genreKey in previousGenres:
-               record[0] = weight + 5
+               record[0] = weight + weight/5
       pass # TODO!
 
    def __markLovedTracks(self, selectedTracks):
