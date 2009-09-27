@@ -222,8 +222,12 @@ class MyFM: # {{{1
       if numBannedTracks > 0:
          self.logger.debug('Ignored %i banned track(s) from Last.fm', numBannedTracks)
 
-class LibraryIndex:
+   def toggleAlbum_mode(self):
+      if self.album_mode: self.album_mode = False
+      else: self.album_mode = True
+      return self.album_mode
 
+class LibraryIndex:
    # TODO Either __albumsByArtists or __tracksInAlbums is redundant!
 
    def load(self, tracks):
