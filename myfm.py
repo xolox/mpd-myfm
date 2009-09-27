@@ -228,6 +228,19 @@ class MyFM: # {{{1
       return self.album_mode
 
 class LibraryIndex:
+   """
+   This class supplies us with all the fuctions needed to find tracks based
+   on some value attached to them. It is initialized by the load() function
+   which takes a list of dictionaries where each dictionary represents one
+   track. In the dictionaries the folowing values are used:
+      ['file']    = filename of the track (can be relative or full path)
+      ['artist']  = Artist tag
+      ['album']   = Album tag
+      ['track']   = Track nr. in album (must be an integer)
+      ['genre']   = Genre tag (should be a list if more than one)
+   If more keys are given they are ignored, if some are missing they are
+   treated as being empty strings.
+   """
    # TODO Either __albumsByArtists or __tracksInAlbums is redundant!
 
    def load(self, tracks):
