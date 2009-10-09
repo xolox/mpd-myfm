@@ -136,6 +136,7 @@ def quit(options, irrec, logger): # {{{1
    options.lircenabled = False
    if irrec:
       irrec.join()
+   cleanup(options , logger)
 
 def clientenabled(status, songsleft, logger): # {{{1
    if int(status['playlistlength']) == 0:
