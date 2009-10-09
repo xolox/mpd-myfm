@@ -286,6 +286,10 @@ def connect(client, hostname, portnr, passwd): # {{{2
       return False
 
 def getLibraryInfo(client): # {{{2
+   """
+   Get the library from the mpd server.
+   We substitute track numberings like '3/12' with '3'.
+   """
    library = client.listallinfo()
    for track in library:
       if track.get('track', '') != '':
