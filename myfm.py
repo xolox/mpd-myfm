@@ -334,25 +334,32 @@ def createkey(*args):
    return '-'.join(map(simplifyname, args))
 
 # TODO Rename simplifyname() to simplify().
-# FIXME Don't strip Unicode characters!
 
 def simplifyname(string):
    """
    simplifyname artist names for fuzzy matching.
    """
-   global _cachednames
-   if string in _cachednames:
-      return _cachednames[string]
+   global __cachednames
+   if string in __cachednames:
+      return __cachednames[string]
    else:
+      # Lowercase the input.
       result = string.lower()
-      result = re.sub('^the\s+', '', result)
-      result = re.sub(',\s+the$', '', result)
-      result = re.sub('[(?:{Lu}{Ll}+) -]', '', result)
+      # Strip prefixed/suffixed "The".
+      result = re.sub('^the\s+', ' ', result)
+      result = re.sub(',\s+the$', ' ', result)
+      # Strip non-word characters.
+      temp = re.sub(__simplify_pattern, ' ', result).strip()
+      # Never strip all (non whitespace) characters!
+      if len(temp) != 0: result = temp
+      # Compact whitespace.
       result = re.sub('\s+', ' ', result)
-      _cachednames[string] = result
+      # Cache result.
+      __cachednames[string] = result
       return result
 
-_cachednames = {}
+__cachednames = {}
+__simplify_pattern = re.compile('\W+', re.UNICODE)
 
 def simplecompare(left, right):
    """
