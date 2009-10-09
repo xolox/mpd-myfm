@@ -297,9 +297,9 @@ def getLibraryInfo(client): # {{{2
          track['track'] = int(match.group())
    return library
 
-def cleanup(options, logger): # {{{2
+def cleanup(options, logger=None): # {{{2
    try:
-      if options.pidfile:
+      if options.pidfile and os.path.exists(options.pidfile):
          os.remove(options.pidfile)
    except:
       if logger:
@@ -455,13 +455,13 @@ if __name__ == '__main__':
       else:
          main(options, parser)
    except RuntimeError:
-      cleanup(options, None)
+      cleanup(options)
       sys.exit(1)
    except (SystemExit, KeyboardInterrupt):
-      cleanup(options, None)
+      cleanup(options)
       sys.exit(0)
    except ImportError, module:
-      cleanup(options, None)
+      cleanup(options)
       print 'An error has occurred during the importing of modules: %s.' % module
 
 # vim: et ts=3 sw=3 fdm=marker
