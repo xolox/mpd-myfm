@@ -284,7 +284,7 @@ class LibraryIndex:
          albumKey = simplifyname(trackInfo.get('album', ''))
          if artistKey != '' and albumKey != '':
             # Save the album under the artist name.
-            if not self.__albumsByArtists.has_key(artistKey):
+            if artistKey not in self.__albumsByArtists:
                self.__albumsByArtists[artistKey] = {}
             if albumKey not in self.__albumsByArtists[artistKey]:
                self.__albumsByArtists[artistKey][albumKey] = []
@@ -292,7 +292,7 @@ class LibraryIndex:
             self.__albumsByArtists[artistKey][albumKey].append(trackInfo)
 
    def artistExists(self, artist):
-      return self.__tracksByArtists.has_key(simplifyname(artist))
+      return simplifyname(artist) in self.__tracksByArtists
 
    def findTrackInfo(self, filename):
       return self.__infoForFileNames.get(filename, {})
@@ -341,7 +341,7 @@ def simplifyname(string):
    simplifyname artist names for fuzzy matching.
    """
    global _cachednames
-   if _cachednames.has_key(string):
+   if string in _cachednames:
       return _cachednames[string]
    else:
       result = string.lower()
