@@ -161,6 +161,7 @@ def quit(options, irrec, logger): # {{{1
    options.lircenabled = False
    if irrec:
       irrec.join()
+   cleanup(options , logger)
 
 def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
    similartracks = findsimilartracks(index, similarartists)
@@ -502,9 +503,10 @@ def connect(client, hostname, portnr, passwd): # {{{2
    except socket.error:
       return False
 
-def cleanup(options, logger): # {{{2
+def cleanup(options, logger=None): # {{{2
    try:
-      if options.pidfile:
+      print options.pidfile
+      if options.pidfile and os.path.exists(options.pidfile):
          os.remove(options.pidfile)
    except:
       if logger:
@@ -721,13 +723,13 @@ if __name__ == '__main__':
       else:
          main(options, parser)
    except RuntimeError:
-      cleanup(options, None)
+      cleanup(options)
       sys.exit(1)
    except (SystemExit, KeyboardInterrupt):
-      cleanup(options, None)
+      cleanup(options)
       sys.exit(0)
    except ImportError, module:
-      cleanup(options, None)
+      cleanup(options)
       print 'An error has occurred during the importing of modules: %s.' % module
 
 # vim: et ts=3 sw=3 fdm=marker
