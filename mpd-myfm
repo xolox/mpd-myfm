@@ -183,7 +183,7 @@ class MPD_MyFM(object):
 
     def _createlog(self):
         logger = logging.Logger()
-        logger.setLevel(self.options.verbosity)
+        logger.setLevel(self.options.loglevel)
         if self.options.logfile:
             logger.setFile(self.options.logfile)
         logger.info('Started mpd-myfm client')
