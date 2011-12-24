@@ -10,7 +10,7 @@ API key and secret, which you can get from http://www.last.fm/api/account
 # TODO Cache failure to love or ban
 
 CACHE_DIRECTORY = '/tmp/lastfm.py'
-SECONDS_BETWEEN_REQUESTS = 2
+SECONDS_BETWEEN_REQUESTS = 0.2
 __LAST_REQUEST_TIME = 0
 
 import htmlentitydefs
