@@ -56,7 +56,7 @@ class MPD_MyFM(object):
         while 1:
             try:
                 if self.clientenabled():
-                    playlist = self.client.playlistinfo()[self.options.repeatfactor:]
+                    playlist = self.client.playlistinfo()[- self.options.repeatfactor:]
                     if self.options.albummode:
                         album = self.generator.get_next_album(playlist)
                         self.client.command_list_ok_begin()
