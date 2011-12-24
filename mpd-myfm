@@ -4,516 +4,221 @@
 from __future__ import with_statement
 import grp
 import logging
-import mpd
+import mpdunicode
 import optparse
 import os
 import pwd
-import random
 import re
 import socket
 import sys
-import threading
 import time
 
-def main(options, parser):
+class MPD_MyFM(object):
+    def __init__(self, options, parser):
+        self.options = options
+        self.parser = parser
+        self.logger = self._createlog()
+        self.logger.debug('logging Level = %i', self.options.verbosity)
+        if self.options.pidfile:
+            pidfile = self._create_pid_file()
+        self._chown()
+        if self.options.pidfile:
+            # Don't close the PID file unless it was actually opened!
+            pidfile.close()
 
-   logger = createlog(options)
-   logger.debug('logging Level = %i', options.verbosity)
-   if options.pidfile:
-      if os.path.exists(options.pidfile):
-         try:
-            pidfile = open(options.pidfile, 'rw')
-            pid = pidfile.read(8)
-            if os.path.exists('/proc/%s' % pid) and pid != '':
-               logger.warning('The pidfile (%s) points to an existing process, mpd-myfm is probably already running.', options.pidfile)
-               if options.daemonize:
-                  logger.warning('If you are sure mpd-myfm is not running you can remove %s and run mpd-myfm again.', options.pidfile)
-                  raise RuntimeError
-               else:
-                  logger.warning('Not using pidfile, since it is already in use by another process')
-                  options.pidfile = ''
+        # Import local modules here so that any errors get logged to the log file.
+        import generator
+
+        self.client = mpdunicode.MPDClient()
+        if not self._connect():
+            self.logger.error(
+                    "Failed to connect to MPD server at `%s' on port `%i'",
+                    self.options.hostname, self.options.portnr)
+            if not self.options.daemonize:
+                parser.print_help()
+                sys.exit(1)
             else:
-               logger.warning('reusing stale pidfile (%s)', options.pidfile)
-               pidfile = open(options.pidfile,'w')
-               pidfile.write(str(os.getpid()))
-         except OSError, error:
-            logger.error('An error occurred while creating the pidfile: %s', error)
-      else:
-         pidfile = open(options.pidfile,'w')
-         pidfile.write(str(os.getpid()))
-         # We close pidfile handle later so the chown below doesn't fail.
+                # If daemonized we should not exit on any connection failure.
+                while not self._connect():
+                    self.sleep(10)
 
-   if options.effectivegroup and os.getuid() == 0:
-      gid = grp.getgrnam(options.effectivegroup)[2]
-      try: os.chown(options.pidfile, -1, gid)
-      except OSError: logger.error('Could not change group of %s.', options.pidfile)
-      try: os.setgid(gid)
-      except OSError:
-         logger.error('Could not set group to %s.', options.effectivegroup)
-         raise RuntimeError
-   if options.effectiveuser and os.getuid() == 0:
-      uid = pwd.getpwnam(options.effectiveuser)[2]
-      try: os.chown(options.pidfile, uid, -1)
-      except OSError: logger.error('Could not change ownership of %s.', options.pidfile)
-      try: os.setuid(uid)
-      except OSError:
-         logger.error('Could not set user to %s.', options.effectiveuser)
-         raise RuntimeError
+        # Use a generator for the loading of the library. This saves massive amounts of memory.
+        self.client.iterate = True
+        library = self.client.listallinfo()
+        self.generator = generator.Playlist_genrator(library, self.options.lastfmaccount, self.logger)
+        self.client.iterate = False
 
-   # Don't close the PID file unless it was actually opened!
-   if options.pidfile:
-      pidfile.close()
+        self.logger.info("Done... Now starting main program loop.")
+        self.run()
 
-   # Import local modules here so that any errors get logged to the log file.
-   import lastfm
-
-   # Create locker object for communication to the mpd server.
-   comlock = threading.RLock()
-   client = mpd.MPDClient()
-   if not connect(client, options.hostname, options.portnr, options.passwd):
-      logger.error("Failed to connect to MPD server at `%s' on port `%i'", options.hostname, options.portnr)
-      if not options.daemonize:
-         parser.print_help()
-         sys.exit(1)
-      else:
-         # If daemonized we should not exit on any connection failure.
-         while not connect(client, options.hostname, options.portnr, options.passwd): sleep(10, logger)
-   else:
-      logger.info("Building the Music Player Daemon library index")
-      # Create an index from the user's library.
-      index = LibraryIndex(client)
-      # Start lirc thread if enabled.
-      if options.lircenabled:
-         irrec = lircstart(options, client, index, comlock, logger)
-      else: irrec = False
-      # Get the user's loved & banned tracks from Last.fm?
-      lovedtracks = []
-      lovedartists = []
-      bannedtracks = []
-      if options.lastfmaccount:
-         logger.info("Scraping last.fm for user's loved and banned tracks")
-         for [artist, title] in lastfm.get_loved_tracks(options.lastfmaccount, logger=logger):
-            lovedtracks.append(createkey(artist, title))
-            if artist != 'Various Artists' and not artist in lovedartists:
-               lovedartists.append(createkey(artist))
-         for [artist, title] in lastfm.get_banned_tracks(options.lastfmaccount, logger=logger):
-            bannedtracks.append(createkey(artist, title))
-
-      logger.info("Done... Now starting main program loop.")
-      similarartists_retry = 0
-      while 1:
-         try:
-            if irrec:
-               irrec = lirccheck(irrec, client, options, index, comlock, logger)
-            comlock.acquire()
-            if clientenabled(client.status(), options.songsleft, logger):
-               lasttrack = client.playlistinfo()[-1]
-               similarartists_complex = [[a['similarity'], a['name']] for a in lastfm.get_similar_artists(lasttrack.get('artist', ''), logger=logger)]
-               similarartists_retry = 0
-               similarartists = []
-               for artist in similarartists_complex:
-                  similarartists.append([artist[0], simplifyname(artist[1])])
-               similarartists = demoteplayedartists(client, options.repeatfactor, similarartists, logger)
-               if not options.albummode or not addalbum(client, index, similarartists, logger):
-                  addtrack(client, index, lasttrack, similarartists, options.repeatfactor, lovedtracks, lovedartists, bannedtracks, logger)
-            comlock.release()
-            # Sleep for a while before trying to update again.
-            sleep(options.updatetime, logger)
-         except (IOError):
-            # HTTP protocol error: Got a bad status line from Last.fm trying to
-            # retrieve similar artists. Retry a few times before exiting.
-            similarartists_retry += 1
-            similarartists_retry_max = 3
-            # TODO Make the number of retries configurable.
-            if similarartists_retry <= similarartists_retry_max:
-               logger.warning('Lost connection to Last.fm, retrying')
-            else:
-               logger.warning('Lost connection to Last.fm %i times, exiting.', similarartists_retry_max)
-               quit(options, irrec, logger)
-               sys.exit(1)
-         except (socket.error, mpd.ConnectionError), msgconerrer:
-            # Let the user know what's going on.
-            logger.error('Lost connection to mpd server? (%s)', msgconerrer)
-            # Try to close the connection in case it's still open.
-            try: client.disconnect()
-            except: pass
-            # Sleep for a while before trying to reconnect.
-            sleep(options.reconnecttime, logger)
-            # Loop until we're connected to MPD again.
-            while not connect(client, options.hostname, options.portnr, options.passwd):
-               sleep(options.reconnecttime, logger)
-         except (SystemExit, KeyboardInterrupt):
-            logger.info('mpd-myfm is stopping transmission.')
-            quit(options, irrec, logger)
-            sys.exit(0)
-         except:
-            # TODO: get track that caused crash in error log.
-            logger.error('mpd-myfm has encountered a problem and will now exit.')
-            quit(options, irrec, logger)
-            # We raise a RuntimeError here in stead of sys.exit() otherwise the
-            # stack gets printed by both the logging module and by the standard
-            # python stack tracer.
-            # Be aware that since this stack gets printed from within the main()
-            # function the main() call will be omitted in the stack trace.
-            raise RuntimeError
-
-def quit(options, irrec, logger): # {{{1
-   options.lircenabled = False
-   if irrec:
-      irrec.join()
-   cleanup(options , logger)
-
-def addtrack(client, index, lasttrack, similarartists, repeatfactor, lovedtracks, lovedartists, bannedtracks, logger): # {{{1
-   similartracks = findsimilartracks(index, similarartists)
-   similartracks = filterduplicates(client, repeatfactor, similartracks)
-   removebannedtracks(bannedtracks, similartracks, logger)
-   # TODO Make threshold configurable?
-   if len(similartracks) <= 3 and lasttrack.get('genre', '') != '':
-      logger.info("Adding track based on same genre `%s'.", lasttrack['genre'])
-      for track in index.findtracksingenre(lasttrack['genre']):
-         similartracks.append([1, track])
-      similartracks = filterduplicates(client, repeatfactor, similartracks)
-      removebannedtracks(bannedtracks, similartracks, logger)
-   if len(similartracks) >= 1:
-      marklovedtracks(similartracks, lovedtracks, lovedartists, logger)
-      tracktoadd = weightedrandomchoice(similartracks)
-      client.add(tracktoadd['file'])
-      logger.info('Added %s by %s to play list.', tracktoadd.get('title', 'No Title tag'), tracktoadd.get('artist', 'No Artist tag'))
-      logger.debug('From file "%s".', tracktoadd['file'])
-   else:
-      logger.info('Failed to find similar track based on artist nor genre!')
-
-def addalbum(client, index, similarartists, logger): # {{{1
-   similaralbums = findsimilaralbums(index, similarartists)
-   if len(similaralbums) <= 1:
-      logger.info('Could not find any albums from similar artists, trying one lose track now.')
-      logger.info('I will try an album again after that.')
-      return False
-   albumtoadd = weightedrandomchoice(similaralbums)
-   trackstoload = index.findtracksinalbum(albumtoadd[0], albumtoadd[1])
-   logger.info("Adding %i tracks in album `%s' by artist `%s'", len(trackstoload), albumtoadd[1], albumtoadd[0])
-   for track in trackstoload:
-      client.add(track['file'])
-   return True
-
-def findsimilaralbums(index, similarartists): # {{{1
-   """
-   Return a list of albums in the Music Player Daemon library from any of the
-   given artists. The numeric similarity associated with each artist is copied
-   to all albums by that artist.
-   """
-   albums = []
-   for [similarity, artistname] in similarartists:
-      for albumname in index.findalbumsbyartist(artistname):
-            albums.append([similarity, [artistname, albumname]])
-   return albums
-
-def filterduplicates(client, repeatfactor, tracks): # {{{1
-   """
-   Make sure a track is never repeated before a configurable number of other
-   tracks (by default 20) has been played. The number of tracks can be set
-   using the -s or --songs command-line argument.
-   """
-   trackstofilter = client.playlist()
-   if len(trackstofilter) < repeatfactor:
-      repeatfactor = len(trackstofilter)
-   trackstofilter = trackstofilter[-repeatfactor : -1]
-   return [t for t in tracks if not t[1]['file'] in trackstofilter]
-
-def demoteplayedartists(client, repeatfactor, similarartists, logger): # {{{1
-   """
-   Make it less likely that a song from an artist who is already in the last
-   'repeatfactor' songs. We do not ban them because that would make it very
-   hard to find similar songs after a while.
-   """
-   trackstofilter = client.playlistinfo()
-   if len(trackstofilter) < repeatfactor:
-      repeatfactor = len(trackstofilter)
-   trackstofilter = trackstofilter[-repeatfactor : -1]
-   artiststofilter = []
-   for track in trackstofilter:
-      artiststofilter.append(simplifyname(track.get('artist', '')))
-   demotedlist = []
-   counter = 0
-   for artist in similarartists:
-      if artist[1] in artiststofilter:
-         counter += 1
-         artist[0] = artist[0] / 30
-         demotedlist.append(artist)
-      else:
-         demotedlist.append(artist)
-   if counter > 0:
-      logger.debug('demoted %i artists because they have recently been played.', counter)
-   return demotedlist
-
-def clientenabled(status, songsleft, logger): # {{{1
-   if int(status['playlistlength']) == 0:
-      logger.log(7, "Doing nothing because play list is empty.")
-      return False
-   if int(status['random']) != 0:
-      logger.log(7, "Doing nothing because random is enabled.")
-      return False
-   if int(status['repeat']) != 0:
-      logger.log(7, "Doing nothing because repeat is enabled.")
-      return False
-   if status.has_key('song') and int(status['playlistlength']) > (int(status['song']) + songsleft) \
-         or not status.has_key('song') and int(status['playlistlength']) >= songsleft:
-      logger.log(7, "Doing nothing because the end of the play list hasn't been reached.")
-      return False
-   return True
-
-def findsimilartracks(index, similarartists): # {{{1
-   """
-   Return a list of tracks in the Music Player Daemon library from any of the
-   given artists. The numeric similarity associated with each artist is copied
-   to all tracks by that artist.
-   """
-   tracks = []
-   for [similarity, artistname] in similarartists:
-      for track in index.findtracksbyartist(artistname):
-         tracks.append([similarity, track])
-   return tracks
-
-def marklovedtracks(similartracks, lovedtracks, lovedartists, logger): # {{{1
-   """
-   Go through the similar tracks and increase the weights of favorite tracks
-   and artists.
-   """
-   nlovedtracks = 0
-   nlovedartists = 0
-   for record in similartracks:
-      similarity, track = record
-      if track.get('artist', '') != '' and track.get('title', '') != '' and \
-            createkey(track['artist'], track['title']) in lovedtracks:
-         record[0] += 25
-         nlovedtracks += 1
-      elif track.get('artist', '') != '' and \
-            createkey(track['artist']) in lovedartists:
-         record[0] += 10
-         nlovedartists += 1
-   if nlovedtracks > 0:
-      logger.debug('Marked %i loved tracks from Last.fm', nlovedtracks)
-   if nlovedartists > 0:
-      logger.debug('Marked %i tracks by loved artists from Last.fm', nlovedtracks)
-
-def removebannedtracks(bannedtracks, similartracks, logger): # {{{1
-   """
-   Go through the similar tracks and remove all banned tracks.
-   """
-   nbannedtracks = 0
-   index = 0
-   while index < len(similartracks):
-      weight, track = similartracks[index]
-      if track.get('artist', '') != '' and track.get('title', '') != '' and \
-            createkey(track['artist'], track['title']) in bannedtracks:
-         del similartracks[index]
-         nbannedtracks += 1
-      else:
-         index += 1
-   if nbannedtracks > 0:
-      logger.debug('Ignored %i banned track(s) from Last.fm', nbannedtracks)
-
-# Lirc support. {{{1
-
-class IRRec(threading.Thread): # {{{2
-   """Threading class for polling lircd, it will set a class instance of 'keypressed'."""
-   keypressed = []
-   def __init__(self, client, options, index, comlock, logger):
-      threading.Thread.__init__(self)
-      self.client = client
-      self.options = options
-      self.index = index
-      self.logger = logger
-      self.comlock = comlock
-
-   def run(self): # {{{3
-      try:
-         lirchandle = pylirc.init("mpd-myfm", options.lircrc, 0)
-      except RuntimeError:
-         self.logger.debug('Could not connect to LIRC daemon, is it running?')
-         options.lircenabled = False
-         lirchandle = False
-         sys.exit()
-      try:
-         if lirchandle:
-            self.logger.info('LIRC thread started.')
-         time.sleep(2)
-         while options.lircenabled:
-            # we do a time.sleep() here so the polling is done on an interval
-            # otherwise it will drain all cpu power for polling, 100ms seems to result in a decent responsiveness.
-            time.sleep(0.1)
-            code = ''
-            s = pylirc.nextcode()
-            if(s):
-               self.comlock.acquire()
-               for code in s:
-                  if code == 'albummode':
-                     if self.options.albummode: options.albummode = False
-                     else: self.options.albummode = True
-                     self.pushconfirmation()
-                     self.logger.info('toggled album mode to %s.', options.albummode)
-                  elif code == 'volumeup':
-                     self.client.volume('1')
-                  elif code == 'volumedown':
-                     self.client.volume('-1')
-                  elif code == 'pause':
-                     self.client.pause()
-                  elif code == 'stop':
-                     self.client.stop()
-                  elif code == 'play':
-                     self.client.play()
-                  elif code == 'next':
-                     self.client.next()
-                  elif code == 'prev':
-                     self.client.previous()
-                  elif code == 'updatedb':
-                     self.pushconfirmation()
-                     self.logger.info('Started updating the Music Player Daemon library.')
-                     i = self.client.update()
-                     while 1:
+    def run(self):
+        similarartists_retry = 0
+        while 1:
+            try:
+                if self.clientenabled():
+                    playlist = self.client.playlistinfo()[self.options.repeatfactor:]
+                    if self.options.albummode:
+                        album = self.generator.get_next_album(playlist)
+                        self.client.command_list_ok_begin()
                         try:
-                           c = self.client.update()
-                           if c > i:
-                              self.logger.info('The Music Player Daemon library has been updated')
-                              self.index = LibraryIndex(self.client)
-                              #TODO: Update our own index.
-                              break
-                        except mpd.CommandError:
-                           sleep(1, self.logger)
-                     # TODO: Get notified when finished and reload library.
-               self.comlock.release()
-         else:
-            self.exit()
-      except (SystemExit, KeyboardInterrupt):
-         self.exit()
-      except:
-         self.logger.error('An error has occurred in the LIRC thread, it is exiting now.')
-         self.exit()
+                            for song in album.songs:
+                                self.client.add(song.file.absolute)
+                        finally:
+                            self.client.command_list_end()
+                    else:
+                        song = self.generator.get_next_song(playlist)
+                        self.client.add(song.file.absolute)
+                # Sleep for a while before trying to update again.
+                self.client.idle(['player', 'playlist'])
+            except (IOError):
+                # HTTP protocol error: Got a bad status line from Last.fm trying to
+                # retrieve similar artists. Retry a few times before exiting.
+                similarartists_retry += 1
+                similarartists_retry_max = 6
+                # TODO Make the number of retries configurable.
+                if similarartists_retry <= similarartists_retry_max:
+                    self.logger.warning('Lost connection to Last.fm, retrying')
+                else:
+                    self.logger.warning('Lost connection to Last.fm %i times, exiting.', similarartists_retry_max)
+                    self.quit(1)
+            except (socket.error, mpdunicode.ConnectionError), msgconerrer:
+                self.logger.error('Lost connection to mpd server? (%s)', msgconerrer)
+                # Try to close the connection in case it's still open.
+                try:
+                    self.client.disconnect()
+                except:
+                    pass
+                # Sleep for a while before trying to reconnect.
+                self.sleep(options.reconnecttime)
+                # Loop until we're connected to MPD again.
+                while not self._connect():
+                    self.sleep(options.reconnecttime)
+            except (SystemExit, KeyboardInterrupt):
+                self.logger.info('mpd-myfm is stopping transmission.')
+                self.quit(0)
+            except:
+                # TODO: get track that caused crash in error log.
+                self.logger.error('mpd-myfm has encountered a problem and will now exit.')
+                self.quit(None)
+                # We raise a RuntimeError here in stead of exit otherwise the
+                # stack gets printed by both the logging module and by the standard
+                # python stack tracer.
+                raise RuntimeError
 
-   def pushconfirmation(self): # {{{3
-      if self.client.status().get('state') == 'play':
-         self.client.pause()
-         time.sleep(0.25)
-         self.client.play()
+    def _create_pid_file(self):
+        if os.path.exists(self.options.pidfile):
+            try:
+                pidfile = open(self.options.pidfile, 'rw')
+                pid = pidfile.read(8)
+                if os.path.exists('/proc/%s' % pid) and pid != '':
+                    self.logger.warning(
+                            'The pidfile (%s) points to an existing process, mpd-myfm is probably already running.',
+                            self.options.pidfile)
+                    if self.options.daemonize:
+                        self.logger.warning(
+                                'If you are sure mpd-myfm is not running you can remove %s and run mpd-myfm again.',
+                                self.options.pidfile)
+                        raise RuntimeError
+                    else:
+                        self.logger.warning('Not using pidfile, since it is already in use by another process')
+                        self.options.pidfile = ''
+                else:
+                    self.logger.warning('reusing stale pidfile (%s)', self.options.pidfile)
+                    pidfile = open(self.options.pidfile,'w')
+                    pidfile.write(str(os.getpid()))
+            except OSError, error:
+                self.logger.error('An error occurred while creating the pidfile: %s', error)
+        else:
+            pidfile = open(self.options.pidfile,'w')
+            pidfile.write(str(os.getpid()))
+            # We close pidfile handle later so the chown doesn't fail.
+        return pidfile
 
-   def exit(self): # {{{3
-         self.logger.info('Stopping LIRC thread.')
-         pylirc.exit()
-         sys.exit()
+    def _chown(self):
+        if self.options.effectivegroup and os.getuid() == 0:
+            gid = grp.getgrnam(self.options.effectivegroup)[2]
+            try:
+                os.chown(self.options.pidfile, -1, gid)
+            except OSError:
+                self.logger.error('Could not change group of %s.', self.options.pidfile)
+            try:
+                os.setgid(gid)
+            except OSError:
+                self.logger.error('Could not set group to %s.', self.options.effectivegroup)
+                raise RuntimeError
+
+        if self.options.effectiveuser and os.getuid() == 0:
+            uid = pwd.getpwnam(self.options.effectiveuser)[2]
+            try:
+                os.chown(self.options.pidfile, uid, -1)
+            except OSError:
+                self.logger.error('Could not change ownership of %s.', self.options.pidfile)
+            try:
+                os.setuid(uid)
+            except OSError:
+                self.logger.error('Could not set user to %s.', self.options.effectiveuser)
+                raise RuntimeError
+
+    def clientenabled(self):
+        status = self.client.status()
+        if int(status['playlistlength']) == 0:
+            self.logger.log(7, "Doing nothing because play list is empty.")
+            return False
+        if int(status['random']) != 0:
+            self.logger.log(7, "Doing nothing because random is enabled.")
+            return False
+        if int(status['repeat']) != 0:
+            self.logger.log(7, "Doing nothing because repeat is enabled.")
+            return False
+        songsleft = int(status['playlistlength']) - int(status.get('song', -1))
+        if songsleft > self.options.songsleft:
+            self.logger.log(7, "Doing nothing because the end of the play list hasn't been reached.")
+            return False
+        return True
 
 
-def lircstart(options, client, index, comlock, logger): # {{{2
-   try:
-      # Check if the pylirc module is available in namespace.
-      if pylirc and os.path.exists(os.path.expanduser(options.lircrc)):
-         irrec = IRRec(client, options, index, comlock, logger)
-         irrec.start()
-      else :
-         logger.warning('Could not find lircrc file: %s.', options.lircrc)
-         logger.info('Will continue without LIRC support.')
-         options.lircenabled = False
-         irrec = False
-   except NameError:
-      logger.error('Could not load the pylirc module needed for LIRC support.')
-      logger.info('Will continue without LIRC support.')
-      options.lircenabled = False
-      irrec = False # Set irrec to false to avoid variable not set errors.
-   return irrec
+    def sleep(self, seconds):
+        self.logger.log(5, 'Sleeping for %i seconds', seconds)
+        time.sleep(seconds)
 
-def lirccheck(irrec, client, options, index, comlock, logger): # {{{2
-   if(options.lircenabled and irrec.isAlive() == 0):
-      irrec = IRRec(options, client, index, comlock, logger)
-      logger.warning('The LIRC thread died, restarting it.')
-      irrec.start()
-   return irrec
+    def _createlog(self):
+        logger = logging.Logger()
+        logger.setLevel(self.options.verbosity)
+        if self.options.logfile:
+            logger.setFile(self.options.logfile)
+        logger.info('Started mpd-myfm client')
+        return logger
 
-# Miscellaneous functions. {{{1
+    def _connect(self):
+        try:
+            self.client.connect(self.options.hostname, self.options.portnr)
+            if self.options.passwd:
+                self.client.password(self.options.passwd)
+            return True
+        except socket.error:
+            return False
 
-def createkey(*args): # {{{2
-   """
-   Simplify a list of strings (one or more of artist name, album name, track
-   title) into a single string using the simplifyname() function.
-   """
-   return '-'.join(map(simplifyname, args))
+    def quit(self, exit_code):
+        self.cleanup()
+        if exit_code is not None:
+            sys.exit(exit_code)
 
-def simplifyname(string): # {{{2
-   """
-   Simplify artist names for fuzzy matching.
-   """
-   global _cachednames
-   if _cachednames.has_key(string):
-      return _cachednames[string]
-   else:
-      result = string.lower()
-      result = re.sub('^the\s+', '', result)
-      result = re.sub(',\s+the$', '', result)
-      result = re.sub('[^a-z0-9 -]', '', result)
-      result = re.sub('\s+', ' ', result)
-      _cachednames[string] = result
-      return result
+    def cleanup(self):
+        try:
+            self.client.close()
+        except:
+            if self.logger:
+                self.logger.error('Could not close connection to the MPD server at %s.', self.options.hostname)
+        try:
+            if self.options.pidfile and os.path.exists(self.options.pidfile):
+                os.remove(self.options.pidfile)
+        except:
+            if self.logger:
+                self.logger.error('Could not remove pidfile: %s', self.options.pidfile)
 
-_cachednames = {}
+def getoptions():
 
-def simplecompare(left, right): # {{{2
-   """
-   Compare two strings using the simplifyname() function and return True when
-   they are equal.
-   """
-   return simplifyname(left) == simplifyname(right)
-
-def weightedrandomchoice(items): # {{{2
-   """
-   Pick a weighted random value from a list of lists, where each list contains
-   a numeric weight followed by any type of associated value.
-   """
-   total = 0
-   items.sort(reverse=True, key=lambda x:x[0])
-   for item in items:
-      total += item[0]
-   threshold = random.uniform(0, 0.6) * total
-   for item in items:
-      threshold -= item[0]
-      if threshold <= 0:
-         return item[1]
-
-def sleep(seconds, logger): # {{{2
-   logger.log(5, 'Sleeping for %i seconds', seconds)
-   time.sleep(seconds)
-
-def unique(list): # {{{2
-    result = []
-    for item in list:
-        if item not in result:
-            result.append(item)
-    return result
-
-def createlog(options): # {{{2
-   logger = logging.Logger()
-   logger.setLevel(options.verbosity)
-   if options.logfile: logger.setFile(options.logfile)
-   logger.info('Started mpd-myfm client')
-   return logger
-
-def connect(client, hostname, portnr, passwd): # {{{2
-   try:
-      client.connect(host=hostname, port=portnr)
-      if passwd: client.password(passwd)
-      return True
-   except socket.error:
-      return False
-
-def cleanup(options, logger=None): # {{{2
-   try:
-      print options.pidfile
-      if options.pidfile and os.path.exists(options.pidfile):
-         os.remove(options.pidfile)
-   except:
-      if logger:
-         logger.error('Could not remove pidfile: %s', options.pidfile)
-
-def getoptions(): # {{{2
-
-   def setdefaults(): # {{{3
+   def setdefaults():
       # Define option defaults.
       defaults = {
             'hostname': '127.0.0.1',
@@ -530,8 +235,6 @@ def getoptions(): # {{{2
             'loglevel': 0,
             'lastfmaccount': '',
             'pidfile': '',
-            'lircrc': '~/.lircrc',
-            'lircenabled': False,
             'userconfig': '~/.mpd-myfm',
             'configfile': '/etc/mpd-myfm.conf',
             'modulepath': '/usr/local/lib/python%s/site-packages/mpd-myfm' % sys.version[:3],
@@ -540,10 +243,10 @@ def getoptions(): # {{{2
 
       return defaults
 
-   def callback(option, opt_str, value, parshandle): # {{{3
+   def callback(option, opt_str, value, parshandle):
       parseconfigfile(value, parser=parshandle)
 
-   def parseconfigfile(configfile, defaults={}, parser=''): # {{{3
+   def parseconfigfile(configfile, defaults={}, parser=''):
       if os.path.exists(configfile):
          handle = open(configfile, 'r')
          fileconfig = []
@@ -570,10 +273,9 @@ def getoptions(): # {{{2
                      defaults[optkey]=optarg
       return defaults
 
-   # }}}
-
-   class MyFmHelpFormatter (optparse.HelpFormatter): # {{{3
-      """Format help with underlined section headers.
+   class MyFmHelpFormatter (optparse.HelpFormatter):
+      """
+      Format help with underlined section headers.
       """
 
       try:
@@ -597,7 +299,6 @@ def getoptions(): # {{{2
       def format_heading(self, heading):
          return "%s\n%s\n" % (heading, "=-"[self.level] * len(heading) )
 
-      # }}}
 
    # Parse config files, first system wide then the userconfig to override options set in both.
    defaults = setdefaults()
@@ -622,8 +323,6 @@ def getoptions(): # {{{2
    parser.add_option('-l', '--lastfm', dest='lastfmaccount', help="play tracks loved by user on Last.fm more frequently and don't play banned tracks", metavar='USERNAME', default=defaults['lastfmaccount'])
    parser.add_option('-A', '--album', dest='albummode', help='add whole albums instead of just one track.', action='store_true', default=defaults['albummode'])
    parser.add_option('-L', '--logfile', dest='logfile', help='Copy script output to file.', metavar='FILE', default=defaults['logfile'])
-   parser.add_option('-i', '--lirc', dest='lircenabled', help='Enable support for lirc remote controll', action='store_true', default=defaults['lircenabled'])
-   parser.add_option('-I', '--lircrc', dest='lircrc', help='Lirc keymapping file to use.', metavar='FILE', default=defaults['lircrc'])
    parser.add_option('-M', '--modulepath', dest='modulepath', help='Directory where the modules that came with mpd-myfm are stored.', metavar='/PATH/TO/', default=defaults['modulepath'])
    parser.add_option('-D', '--daemonize', dest='daemonize', help='Detatch from consolle.', action='store_true', default=defaults['daemonize'])
    parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use.', metavar='FILE', default=defaults['pidfile'])
@@ -635,100 +334,26 @@ def getoptions(): # {{{2
 
    return options, parser
 
-class LibraryIndex: # {{{1
-
-   def __init__(self, mpdclient): # {{{2
-      self.__tracks_by_artists = {}
-      self.__tracks_in_genres = {}
-      self.__albums_by_artists  = {}
-      self.__tracks_in_albums = {}
-      for track in mpdclient.listallinfo():
-         self.__addtoindex('artist', track, self.__tracks_by_artists)
-         self.__addtoindex('genre', track, self.__tracks_in_genres)
-         if track.get('artist', '') != '' and track.get('album', '') != '':
-            artistkey = simplifyname(track['artist'])
-            if not self.__albums_by_artists.has_key(artistkey):
-               self.__albums_by_artists[artistkey] = []
-            if track['album'] not in self.__albums_by_artists[artistkey]:
-               self.__albums_by_artists[artistkey].append(track['album'])
-            albumkey = createkey(track['artist'], track['album'])
-            if not self.__tracks_in_albums.has_key(albumkey):
-               self.__tracks_in_albums[albumkey] = []
-            self.__tracks_in_albums[albumkey].append(track)
-
-   def __addtoindex(self, field, track, index): # {{{2
-      if field in track:
-         values = track[field]
-         # track['genre'] can be a list of genres..
-         if type(values) != type([]): values = [values]
-         # and it may contain duplicates?! :-\
-         for value in unique(values):
-            key = simplifyname(value)
-            if key != '':
-               if not index.has_key(key):
-                  index[key] = []
-               index[key].append(track)
-
-   def findtracksbyartist(self, artistname): # {{{2
-      artistkey = simplifyname(artistname)
-      return self.__tracks_by_artists.get(artistkey, [])
-
-   def findtracksingenre(self, genrename): # {{{2
-      genrekey = simplifyname(genrename)
-      return self.__tracks_in_genres.get(genrekey, [])
-
-   def findalbumsbyartist(self, artistname): # {{{2
-      artistkey = simplifyname(artistname)
-      return self.__albums_by_artists.get(artistkey, [])
-
-   def findtracksinalbum(self, artistname, albumname): # {{{2
-      albumkey = createkey(artistname, albumname)
-      tracks = self.__tracks_in_albums.get(albumkey, [])
-      tracks.sort(self.__sortalbumtracks)
-      return tracks
-
-   def __sortalbumtracks(self, x, y):
-      return cmp(self.__gettracknr(x), self.__gettracknr(y))
-
-   def __gettracknr(self, track):
-      if track.get('track', '') != '':
-         match = re.match('^\d+', track['track'])
-         return int(match.group())
-      return 0
-
-# }}}1
-
 if __name__ == '__main__':
-   options, parser = getoptions()
-   sys.path.append(options.modulepath)
-   # Import modules needed for optional functionality here.
-   # This makes loading optional and errors won't stop us from running.
-   # We check if loading was successful later when logging is available.
-   try:
-      if options.lircenabled:
-         try:
-            import pylirc
-         except ImportError, error:
-            pass
-      if options.daemonize:
-         import daemon
-         try:
-            with daemon.DaemonContext():
-               main(options, parser)
-         except daemon.daemon.DaemonError, error:
-            print 'Could not Daemonize:', error
-            if options.verbosity >= 2: raise
-            else : raise RuntimeError
-      else:
-         main(options, parser)
-   except RuntimeError:
-      cleanup(options)
-      sys.exit(1)
-   except (SystemExit, KeyboardInterrupt):
-      cleanup(options)
-      sys.exit(0)
-   except ImportError, module:
-      cleanup(options)
-      print 'An error has occurred during the importing of modules: %s.' % module
+    options, parser = getoptions()
+    sys.path.append(options.modulepath)
+    # Import modules needed for optional functionality here.
+    # This makes loading optional and errors won't stop us from running.
+    # We check if loading was successful later when logging is available.
+    try:
+        if options.daemonize:
+            import daemon
+            try:
+                with daemon.DaemonContext():
+                    MPD_MyFM(options, parser)
+            except daemon.daemon.DaemonError, error:
+                print('Could not Daemonize:', error)
+                if options.verbosity >= 2:
+                    raise
+                else:
+                    raise RuntimeError
+        else:
+            MPD_MyFM(options, parser)
+    except ImportError, module:
+        print('An error has occurred during the importing of modules: %s.' % module)
 
-# vim: et ts=3 sw=3 fdm=marker
