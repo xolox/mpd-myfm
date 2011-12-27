@@ -369,12 +369,17 @@ class Song(LibraryObject):
         return value.strip() if isinstance(value, basestring) else value
 
     def __eq__(self, other):
+        left = self._value
         if isinstance(other, Song):
-            return self._value.get('file', True) == other._value.get('file', False)
+            right = other._value
         elif isinstance(other, dict):
-            return self._value.get('file', True) == other.get('file', False)
+            right = other
         else:
             return False
+        for item in ('file', 'title', 'artist'):
+            if left.get(item, True) != right.get(item, False):
+                return False
+        return True
 
 
 class Path(LibraryObject, unicode):
