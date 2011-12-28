@@ -183,7 +183,11 @@ class LibraryObject(object):
     def __new__(cls, value, library):
         if not isinstance(value, cls) and isinstance(value, (list, tuple)):
             value = value[0]
-        return super(LibraryObject, cls).__new__(cls, value)
+        base = super(LibraryObject, cls)
+        if base.__new__.__self__ is object:
+            return base.__new__(cls)
+        else:
+            return base.__new__(cls, value)
 
     def __init__(self, value, library):
         self._library = library
