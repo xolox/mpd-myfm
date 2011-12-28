@@ -110,6 +110,7 @@ class Playlist_genrator(object):
         while retry <= MAX_RETRY:
             try:
                 similar_artists = lastfm.get_similar_artists(artist, logger=self.logger)
+                break
             except (IOError):
                 # HTTP protocol error: Got a bad status line from Last.fm trying to
                 # retrieve similar artists. Retry a few times before giving up.
