@@ -41,14 +41,14 @@ class Playlist_genrator(object):
             return self.get_random_item('songs')
         playlist = [mpdlibrary.Song(song, self.library) for song in simplify_songlist(playlist)]
         songs = self.get_similar_items('songs', playlist)
-        if not songs:
-            return self.get_random_item('songs')
         results = []
         for similarity, song in songs:
             if song in self._loved_tracks:
                 similarity *= 10
             if not song in playlist and not song in self._banned_tracks:
                 results.append((similarity, song))
+        if not results:
+            return self.get_random_item('songs')
         return _weighted_random_choice(results)
 
     def get_next_album(self, playlist):
