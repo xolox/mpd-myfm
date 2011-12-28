@@ -21,7 +21,7 @@ class Playlist_genrator(object):
         """
         if logger:
             logger.info("Building the Music Player Daemon library index")
-        self.library = mpdlibrary.Library(simplify_library(library), options={'filesystem': False})
+        self.library = mpdlibrary.Library(simplify_songlist(library), options={'filesystem': False})
         self.lastfm_username = lastfm_username
         self.logger = logger
         if lastfm_username:
@@ -39,7 +39,7 @@ class Playlist_genrator(object):
         """
         if not playlist:
             return self.get_random_item('songs')
-        playlist = [mpdlibrary.Song(song, self.library) for song in playlist]
+        playlist = [mpdlibrary.Song(song, self.library) for song in simplify_songlist(playlist)]
         songs = self.get_similar_items('songs', playlist)
         if not songs:
             return self.get_random_item('songs')
@@ -57,7 +57,7 @@ class Playlist_genrator(object):
         """
         if not playlist:
             return self.get_random_item('albums')
-        albums = self.get_similar_items('albums', playlist)
+        albums = self.get_similar_items('albums', simplify_songlist(playlist))
         if not albums:
             return self.get_random_item('albums')
         return _weighted_random_choice(albums)
@@ -74,7 +74,7 @@ class Playlist_genrator(object):
             if not isinstance(song, mpdlibrary.Song):
                 playlist = [song if isinstance(song, mpdlibrary.Song)
                         else mpdlibrary.Song(song, self.library)
-                        for song in playlist]
+                        for song in simplify_songlist(playlist)]
                 break
         results = []
         playlist_artists = [song.artist for song in playlist]
@@ -111,7 +111,7 @@ class Playlist_genrator(object):
             library_artists = list(self.library.artists())
             for lastfm_artist in similar_artists:
                 name = simplify_name(lastfm_artist['name'])
-                if name in library_artists:
+                if name != artist and name in library_artists:
                     similar_artist = mpdlibrary.Artist(name, self.library)
                     similar_artist.similarity = lastfm_artist['similarity']
                     results.append(similar_artist)
@@ -157,7 +157,7 @@ def _weighted_random_choice(items):
         if threshold <= 0:
             return item[1]
 
-def simplify_library(library):
+def simplify_songlist(library):
     for song in library:
         new_song = dict((key, simplify_name(value)) for key, value in song.items() if key != 'file')
         if 'file' in song:
