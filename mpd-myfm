@@ -52,7 +52,6 @@ class MPD_MyFM(object):
         self.run()
 
     def run(self):
-        similarartists_retry = 0
         while 1:
             try:
                 if self.clientenabled():
@@ -70,17 +69,6 @@ class MPD_MyFM(object):
                         self.client.add(song.file.absolute)
                 # Sleep for a while before trying to update again.
                 self.client.idle(['player', 'playlist'])
-            except (IOError):
-                # HTTP protocol error: Got a bad status line from Last.fm trying to
-                # retrieve similar artists. Retry a few times before exiting.
-                similarartists_retry += 1
-                similarartists_retry_max = 6
-                # TODO Make the number of retries configurable.
-                if similarartists_retry <= similarartists_retry_max:
-                    self.logger.warning('Lost connection to Last.fm, retrying')
-                else:
-                    self.logger.warning('Lost connection to Last.fm %i times, exiting.', similarartists_retry_max)
-                    self.quit(1)
             except (socket.error, mpdunicode.ConnectionError), msgconerrer:
                 self.logger.error('Lost connection to mpd server? (%s)', msgconerrer)
                 # Try to close the connection in case it's still open.

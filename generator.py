@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import time
 import random
 import re
 import unicodedata
@@ -7,8 +8,7 @@ import unicodedata
 import lastfm
 import mpdlibrary
 
-# TODO: make sure the number of songs by an artist does not influence the
-#       chance of a song by that artist being chosen.
+MAX_RETRY = 6
 
 class Playlist_genrator(object):
     """
@@ -106,7 +106,21 @@ class Playlist_genrator(object):
         Returns an empty list when no artists could be found.
         """
         results = []
-        similar_artists = lastfm.get_similar_artists(artist, logger=self.logger)
+        retry = 0
+        while retry <= MAX_RETRY:
+            try:
+                similar_artists = lastfm.get_similar_artists(artist, logger=self.logger)
+            except (IOError):
+                # HTTP protocol error: Got a bad status line from Last.fm trying to
+                # retrieve similar artists. Retry a few times before giving up.
+                retry += 1
+                if self.logger:
+                    self.logger.warning('Lost connection to Last.fm, retrying')
+                time.sleep(1)
+        else:
+            if self.logger:
+                self.logger.warning('Lost connection to Last.fm %i times, exiting.', MAX_RETRY)
+            return results
         if similar_artists:
             library_artists = list(self.library.artists())
             for lastfm_artist in similar_artists:
