@@ -83,7 +83,7 @@ class Playlist_genrator(object):
         for artist in similar_artists:
             genre_value = artist.similarity / 2
             if artist in playlist_artists:
-                artist.similarity *= 1 / (playlist_artists.index(artist) * 10)
+                artist.similarity *= 1 / (playlist_artists.index(artist) * 25)
             items.extend((artist.similarity, item) for item in artist.__getattribute__(item_name))
         if not items or len(similar_artists) <= 3:
             items.extend((genre_value, item) for genre in playlist[-1].genre.all()
