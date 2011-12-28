@@ -76,22 +76,24 @@ class Playlist_genrator(object):
                         else mpdlibrary.Song(song, self.library)
                         for song in playlist]
                 break
-        items = []
+        results = []
         playlist_artists = [song.artist for song in playlist]
         similar_artists = self.get_similar_artists(playlist[-1].artist)
         genre_value = 1
         for artist in similar_artists:
+            items = list(artist.__getattribute__(item_name))
+            artist.similarity = artist.similarity / len(items)
             genre_value = artist.similarity / 2
             if artist in playlist_artists:
                 artist.similarity *= 1 / (playlist_artists.index(artist) * 25)
-            items.extend((artist.similarity, item) for item in artist.__getattribute__(item_name))
-        if not items or len(similar_artists) <= 3:
-            items.extend((genre_value, item) for genre in playlist[-1].genre.all()
+            results.extend((artist.similarity, item) for item in items)
+        if not results or len(similar_artists) <= 3:
+            results.extend((genre_value, item) for genre in playlist[-1].genre.all()
                     for item in genre.__getattribute__(item_name))
-        if not items:
+        if not results:
             # Still no similar items found? You got some hipster track right there.
             return self.get_similar_items(item_name, playlist[:-1])
-        return items
+        return results
 
     def get_random_item(self, item_name):
         return random.choice(list(self.library.__getattribute__(item_name)()))
