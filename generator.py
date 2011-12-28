@@ -78,13 +78,16 @@ class Playlist_genrator(object):
                 break
         items = []
         playlist_artists = [song.artist for song in playlist]
-        for artist in self.get_similar_artists(playlist[-1].artist):
+        similar_artists = self.get_similar_artists(playlist[-1].artist)
+        genre_value = 1
+        for artist in similar_artists:
+            genre_value = artist.similarity / 2
             if artist in playlist_artists:
                 artist.similarity *= 1 / (playlist_artists.index(artist) * 10)
             items.extend((artist.similarity, item) for item in artist.__getattribute__(item_name))
-        if not items:
-            items = [(0, album) for genre in playlist[-1].genre.all()
-                    for album in genre.__getattribute__(item_name)]
+        if not items or len(similar_artists) <= 3:
+            items.extend((genre_value, item) for genre in playlist[-1].genre.all()
+                    for item in genre.__getattribute__(item_name))
         if not items:
             # Still no similar items found? You got some hipster track right there.
             return self.get_similar_items(item_name, playlist[:-1])
