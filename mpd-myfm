@@ -4,7 +4,6 @@
 from __future__ import with_statement
 import grp
 import logging
-import mpdunicode
 import optparse
 import os
 import pwd
@@ -12,6 +11,10 @@ import re
 import socket
 import sys
 import time
+
+import mpdunicode
+import generator
+
 
 class MPD_MyFM(object):
     def __init__(self, options, parser):
@@ -26,9 +29,6 @@ class MPD_MyFM(object):
             # Don't close the PID file unless it was actually opened!
             pidfile.close()
 
-        # Import local modules here so that any errors get logged to the log file.
-        import generator
-
         self.client = mpdunicode.MPDClient()
         if not self._connect():
             self.logger.error(
@@ -42,11 +42,7 @@ class MPD_MyFM(object):
                 while not self._connect():
                     self.sleep(10)
 
-        # Use a generator for the loading of the library. This saves massive amounts of memory.
-        self.client.iterate = True
-        library = self.client.listallinfo()
-        self.generator = generator.Playlist_genrator(library, self.options.lastfmaccount, self.logger)
-        self.client.iterate = False
+        self.generator = self._new_generator()
 
         self.logger.info("Done... Now starting main program loop.")
         self.run()
@@ -68,7 +64,10 @@ class MPD_MyFM(object):
                         song = self.generator.get_next_song(playlist)
                         self.client.add(song.file.absolute)
                 # Sleep for a while before trying to update again.
-                self.client.idle(['player', 'playlist'])
+                changes = self.client.idle(['player', 'playlist', 'database'])
+                if 'database' in changes:
+                    self.generator = None
+                    self.generator = self._new_generator()
             except (socket.error, mpdunicode.ConnectionError), msgconerrer:
                 self.logger.error('Lost connection to mpd server? (%s)', msgconerrer)
                 # Try to close the connection in case it's still open.
@@ -92,6 +91,14 @@ class MPD_MyFM(object):
                 # stack gets printed by both the logging module and by the standard
                 # python stack tracer.
                 raise RuntimeError
+
+    def _new_generator(self):
+        # Use an iterator for the loading of the library. This saves massive amounts of memory.
+        self.client.iterate = True
+        library = self.client.listallinfo()
+        gen = generator.Playlist_genrator(library, self.options.lastfmaccount, self.logger)
+        self.client.iterate = False
+        return gen
 
     def _create_pid_file(self):
         if os.path.exists(self.options.pidfile):
