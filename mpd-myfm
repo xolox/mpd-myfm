@@ -13,9 +13,6 @@ import socket
 import sys
 import time
 
-import mpdunicode
-import generator
-
 
 class MPD_MyFM(object):
     def __init__(self, options, parser, logger):
@@ -353,10 +350,14 @@ if __name__ == '__main__':
             import daemon
             try:
                 with daemon.DaemonContext():
+                    import mpdunicode
+                    import generator
                     MPD_MyFM(options, parser, logger)
             except daemon.daemon.DaemonError, error:
                 logger.exception('Could not Daemonize:', error)
         else:
+            import mpdunicode
+            import generator
             MPD_MyFM(options, parser, logger)
     except ImportError, module:
         logger.exception('An error has occurred during the importing of modules: %s.', module)
