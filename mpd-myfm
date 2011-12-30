@@ -4,6 +4,7 @@
 from __future__ import with_statement
 import grp
 import logging
+import logging.handlers
 import optparse
 import os
 import pwd
@@ -177,10 +178,23 @@ class MPD_MyFM(object):
         time.sleep(seconds)
 
     def _createlog(self):
-        logger = logging.Logger()
+        logger = logging.getLogger('mpd-myfm')
         logger.setLevel(self.options.loglevel)
+        formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s')
         if self.options.logfile:
-            logger.setFile(self.options.logfile)
+            file_handler = logging.handlers.RotatingFileHandler(
+                    self.options.logfile,
+                    mode='a',
+                    maxBytes=5*1024*1024,
+                    backupCount=3,
+                    encoding='UTF-8',
+                    delay=1)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        if not self.options.daemonize:
+            console_handler = logging.StreamHandler(stream=sys.stdout)
+            console_handler.setFormatter(formatter)
+            logger.addHandler(console_handler)
         logger.info('Started mpd-myfm client')
         return logger
 
