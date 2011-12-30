@@ -1,6 +1,3 @@
- * Peter: Select random similar artists instead of tracks, because otherwise
-          the number of tracks per artist influences the randomness too much?
-          (of course this assumes each artist has several tracks)
  * Peter: Fall back on favorite tracks when no similar tracks exist?
  * Peter: Cache the similar artists retrieved from Last.fm?
  * Peter: When the last track doesn't have a genre, search the other tracks in
@@ -19,41 +16,6 @@
           artists in genre instead of tracks in genre, to run
           demoteplayedartists() on the selected artists, and to pick a random
           track by a random artist from the resulting list.
- * Peter: We're clearly still getting used to the way Python handles string
-          encoding because this morning I found the following output in my
-          screen session:
-
-          mpd-myfm: INFO Added Picastro/Metal Cares/05. I Can't Fall Asleep.mp3 to play list.
-          mpd-myfm: DEBUG demoted 6 artists because they have recently been played.
-          Traceback (most recent call last):
-            File "/usr/lib/python2.6/logging/__init__.py", line 773, in emit
-                stream.write(fs % msg.encode("UTF-8"))
-          UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 36: ordinal not in range(128)
-          /home/peter/Ontwikkeling/Python/mpd-myfm/lastfm.py:70: UnicodeWarning: Unicode unequal comparison failed to convert both arguments to Unicode - interpreting them as being unequal
-            if similar_artist != '' and similar_artist != artist and \
-          mpd-myfm: INFO Added port-royal/Afraid to Dance/08. Leitmotiv_Glasnost.mp3 to play list.
- * Peter: Decouple the play list generator from the Music Player Daemon
-          interfacing code so that other music players can be supported.
-          Specifically, I want to support Rhythmbox which shouldn't be too hard
-          because there's "rhythmbox-client" and the music library is available
-          in ~/.local/share/rhythmbox/rhythmdb.xml...
- * Peter: Bart implemented most the daemon code because he wanted to run the
-          script as a daemon. Unfortunately he didn't document where the pieces
-          of the puzzle go, which is why I just spend more than an hour getting
-          the script to run from /etc/init.d/mpd-myfm :-). Anyway, it turned
-          out that /etc/init.d/mpd-myfm wouldn't work until I'd started the
-          script as a daemon manually once. Maybe it's got something to do with
-          the access rights of the PID file? Apart from fixing the bug we need
-          to add an INSTALL file to the repository ASAP.
- * Peter: My mpd-myfm daemon just 'died' because of a connection timeout while
-          connecting to Last.fm from the function lastfm.get_similar_artists():
-            File "/usr/lib/python2.5/httplib.py", line 683, in connect
-              raise socket.error, msg
-            IOError: [Errno socket error] (110, 'Connection timed out')
-          Maybe the main loop should be restarted when such errors occur?
- * Bart:  If the mpd library is updated mpd-myfm can error out if it tries to add a
-          file that was deleted or moved. we should catch this and update our
-          index. This should also be done when we request a library update.
 
 
 vim: et ai

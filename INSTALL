@@ -7,64 +7,45 @@ a package.
 
 If you just want to run mpd-myfm manually from your home, you can copy the
 whole directory you got from git to wherever you want.
-To use a config file edit "~/.mpd-myfm". If you want to use the lirc functions
-you should also edit "~/.lircrc".
+To use a config file edit "~/.mpd-myfm".
 
-If you plan on using mpd-myfm as a daemon process running from init.d
-you have to copy a few files.
+If you plan on using mpd-myfm as a daemon process running from init.d or
+Upstart you have to copy a few files.
 
- * Copy the daemon directory and lastfm.py file to 
+ * Copy the lastfm.py, mpdunicode.py logging.py and generator.py files to
    "/usr/local/lib/python[VERSION]/site-packages/mpd-myfm".
-   If you already have the daemon module from PEP3143 (see 
-   "http://www.python.org/dev/peps/pep-3143/") you can suffice with only
-   copying lastfm.py
  * Secondly place the mpd-myfm executable in root's $PATH.
    And make it executable (chmod +x).
- * Then make a copy of the init.d script in "/etc/init.d/" (make 
+ * If your system uses Upstart place a copy of the Upstart job file in
+   "/etc/init/".
+   If your system uses init.d copy the init.d script in "/etc/init.d/" (make 
    runlevel configurations to your likings).
  * Mpd-myfm looks for a config file at /etc/mpd-myfm.conf
- * To use lirc you should also specify a lircrc file in the configuration.
 
 This should do it. If you have any trouble getting mpd-myfm to run from the 
-init.d script, try running it manually as root first. (this is due to issues with
-the loading of our own modules which are probably fixed now.)
+init.d script or Upstart job, try running it manually as root first.
 
 The config file uses a format of 'OPTION = VALUE' the options are:
   hostname  = The hostname or ip address of the mpd server. (127.0.0.1)
   portnr    = The port number to use in the connection. (6600)
   passwd    = If you use a password to connect to the mpd server set it here.
-	updatetime    = The interval between updates of the mpd status. (5)
   reconnecttime = The time to wait before reconnecting on connection loss. (60)
   repeatfactor  = The number of tracks to check for the same artist, and reduce
                   the possibility of adding a song by the same artist. (20)
   albummode = Set this to True (capital T) to make mpd-myfm add whole albums in
               stead of just one song. (False)
   logfile   = The file to place the log messages in. (No logfile)
-  daemonize = Run as daemon (ignored when started from init.d) (False)
-	verbosity = Level of output, set to 1 to see which songs get added. (0)
-	loglevel  = Level of output sent to the logfile. (0)
+  daemonize = Run as daemon (ignored when started from init.d or Upstart).
+              (False)
+  verbosity = Level of output, set to 1 to see which songs get added. (0)
+  loglevel  = Level of output sent to the logfile. (0)
   lastfmaccount = The username of your last.fm account to find loved songs.
-	lircenabled = Enable lirc remote control interface. (False)
-	lircrc    = The lircrc file to read for button functions. (~/.lircrc)
+  lircenabled = Enable lirc remote control interface. (False)
+  lircrc    = The lircrc file to read for button functions. (~/.lircrc)
   pidfile   = The process id file to use (ignored when started from init.d), to
               make sure you don't run more than one instance of mpd-myfm. (No pidfile)
-	modulepath    = Path to the directory containing the local modules. 
+  modulepath    = Path to the directory containing the local modules. 
                   ('/usr/local/lib/python[python_version]/site-packages/mpd-myfm')
-	effectiveuser = The username of the user to run as when daemonized.
-	effectivegroup = The name of the group to run as when daemonized.
+  effectiveuser = The username of the user to run as when daemonized.
+  effectivegroup = The name of the group to run as when daemonized.
 
-
-The lirc configuration commands mpd-myfm accepts are:
-
- * 'albummode'   Toggles albummode, lets the music hiccup to let you know it 
-                 received the command.
- * 'play'
- * 'stop'
- * 'pauze'
- * 'volumeup'
- * 'volumedown'
- * 'next'
- * 'prev' 
- * 'updatedb'    At the moment this only makes the mpd server update its 
-                 library but mpd-myfm doesn't reloads the index and so will
-                 not be aware of any new songs or changed locations.
