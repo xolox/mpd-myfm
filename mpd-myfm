@@ -18,11 +18,11 @@ import generator
 
 
 class MPD_MyFM(object):
-    def __init__(self, options, parser):
+    def __init__(self, options, parser, logger):
+        self.logger = logger
+        self.logger.info('Started mpd-myfm client')
         self.options = options
-        self.parser = parser
-        self.logger = self._createlog()
-        self.logger.debug('logging Level = %i', self.options.verbosity)
+        self.logger.debug('logging Level = %i', self.options.loglevel)
         if self.options.pidfile:
             pidfile = self._create_pid_file()
         self._chown()
@@ -177,27 +177,6 @@ class MPD_MyFM(object):
         self.logger.log(5, 'Sleeping for %i seconds', seconds)
         time.sleep(seconds)
 
-    def _createlog(self):
-        logger = logging.getLogger('mpd-myfm')
-        logger.setLevel(self.options.loglevel)
-        formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s')
-        if self.options.logfile:
-            file_handler = logging.handlers.RotatingFileHandler(
-                    self.options.logfile,
-                    mode='a',
-                    maxBytes=5*1024*1024,
-                    backupCount=3,
-                    encoding='UTF-8',
-                    delay=1)
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-        if not self.options.daemonize:
-            console_handler = logging.StreamHandler(stream=sys.stdout)
-            console_handler.setFormatter(formatter)
-            logger.addHandler(console_handler)
-        logger.info('Started mpd-myfm client')
-        return logger
-
     def _connect(self):
         try:
             self.client.connect(self.options.hostname, self.options.portnr)
@@ -343,26 +322,42 @@ def getoptions():
 
    return options, parser
 
+
+def _createlog(options):
+    logger = logging.getLogger('mpd-myfm')
+    logger.setLevel(options.loglevel)
+    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(message)s')
+    if options.logfile:
+        file_handler = logging.handlers.RotatingFileHandler(
+                options.logfile,
+                mode='a',
+                maxBytes=5*1024*1024,
+                backupCount=3,
+                encoding='UTF-8',
+                delay=1)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    if not options.daemonize:
+        console_handler = logging.StreamHandler(stream=sys.stdout)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+    return logger
+
+
 if __name__ == '__main__':
     options, parser = getoptions()
     sys.path.append(options.modulepath)
-    # Import modules needed for optional functionality here.
-    # This makes loading optional and errors won't stop us from running.
-    # We check if loading was successful later when logging is available.
+    logger = _createlog(options)
     try:
         if options.daemonize:
             import daemon
             try:
                 with daemon.DaemonContext():
-                    MPD_MyFM(options, parser)
+                    MPD_MyFM(options, parser, logger)
             except daemon.daemon.DaemonError, error:
-                print('Could not Daemonize:', error)
-                if options.verbosity >= 2:
-                    raise
-                else:
-                    raise RuntimeError
+                logger.exception('Could not Daemonize:', error)
         else:
-            MPD_MyFM(options, parser)
+            MPD_MyFM(options, parser, logger)
     except ImportError, module:
-        print('An error has occurred during the importing of modules: %s.' % module)
+        logger.exception('An error has occurred during the importing of modules: %s.', module)
 
