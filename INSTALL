@@ -12,7 +12,7 @@ To use a config file edit "~/.mpd-myfm".
 If you plan on using mpd-myfm as a daemon process running from init.d or
 Upstart you have to copy a few files.
 
- * Copy the lastfm.py, mpdunicode.py logging.py and generator.py files to
+ * Copy the lastfm.py, mpdunicode.py, mpdlibrary.py and generator.py files to
    "/usr/local/lib/python[VERSION]/site-packages/mpd-myfm".
    You may need to add this path to the modulepath option in the config file.
  * Secondly place the mpd-myfm executable in root's $PATH.
