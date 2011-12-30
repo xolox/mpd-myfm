@@ -40,7 +40,7 @@ class MPD_MyFM(object):
             else:
                 # If daemonized we should not exit on any connection failure.
                 while not self._connect():
-                    self.sleep(10)
+                    self.sleep(self.options.reconnecttime)
 
         self.generator = self._new_generator()
 
