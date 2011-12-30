@@ -21,7 +21,10 @@ class Playlist_genrator(object):
         """
         if logger:
             logger.info("Building the Music Player Daemon library index")
+            reload_start = time.time()
         self.library = mpdlibrary.Library(simplify_songlist(library), options={'filesystem': False})
+        if logger:
+            logger.info('info: Building of the library took %.3f seconds.', (time.time() - reload_start))
         self.lastfm_username = lastfm_username
         self.logger = logger
         if lastfm_username:

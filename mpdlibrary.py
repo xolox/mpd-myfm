@@ -15,7 +15,6 @@
 # limitations under the License.
 #-------------------------------------------------------------------------------
 import locale
-import time
 
 locale.setlocale(locale.LC_ALL, "")
 
@@ -28,7 +27,6 @@ class Library(object):
 
     def reload(self, mainlist):
         '''Reloads the current instance with the new list from MPD. Returns the instance for your convenience'''
-        reload_start = time.time()
         self._song_list = None
         self._song_list = [song for song in mainlist if 'file' in song]
         self._artists = LibraryIndex()
@@ -63,7 +61,6 @@ class Library(object):
                     else:
                         fslist[part] = fslist.get(part, {})
                         fslist = fslist[part]
-        print('info: Building of the library took %.3f seconds.' % (time.time() - reload_start))
         return self
 
     def artists(self):
