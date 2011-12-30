@@ -37,8 +37,7 @@ The config file uses a format of 'OPTION = VALUE' the options are:
   logfile   = The file to place the log messages in. (No logfile)
   daemonize = Run as daemon (ignored when started from init.d or Upstart).
               (False)
-  verbosity = Level of output, set to 1 to see which songs get added. (0)
-  loglevel  = Level of output sent to the logfile. (0)
+  loglevel  = Level of output sent to the logfile and console. (0)
   lastfmaccount = The username of your last.fm account to find loved songs.
   lircenabled = Enable lirc remote control interface. (False)
   lircrc    = The lircrc file to read for button functions. (~/.lircrc)

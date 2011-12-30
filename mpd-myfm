@@ -216,7 +216,6 @@ def getoptions():
             'albummode': False,
             'logfile': '',
             'daemonize': False,
-            'verbosity': 0,
             'loglevel': 0,
             'lastfmaccount': '',
             'pidfile': '',
@@ -313,8 +312,7 @@ def getoptions():
    parser.add_option('-F', '--pidfile', dest='pidfile', help='process identifier file to use.', metavar='FILE', default=defaults['pidfile'])
    parser.add_option('--userid', dest='effectiveuser', help='Name of the useraccount to run as if daemonized.', metavar='USERNAME', default=defaults['effectiveuser'])
    parser.add_option('--groupid', dest='effectivegroup', help='Name of the group to run in if daemonized.', metavar='GROUPNAME', default=defaults['effectivegroup'])
-   parser.add_option('-v', '--verbose', dest='verbosity', help='Make more noise', action='count', default=defaults['verbosity'])
-   parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get logged in the logfile. (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
+   parser.add_option('--loglevel', dest='loglevel', help='Set the amount of messages that get logged to the logfile and console. (1-10)', type='int', metavar='NUM', default=defaults['loglevel'])
    (options, args) = parser.parse_args()
 
    return options, parser
