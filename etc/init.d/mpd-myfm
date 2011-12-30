@@ -12,7 +12,7 @@
 
 PIDFILE=$(grep "^pidfile" /etc/mpd-myfm.conf |awk -F\= '{print $2}')
 if [ -z $PIDFILE ] ; then
-	PIDFILE="/tmp/mpd-myfm.pid"
+	PIDFILE="/var/run/mpd-myfm.pid"
 fi
 
 # Get lsb functions
