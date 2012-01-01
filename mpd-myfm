@@ -52,6 +52,7 @@ class MPD_MyFM(object):
                     playlist = self.client.playlistinfo()[- self.options.repeatfactor:]
                     if self.options.albummode:
                         album = self.generator.get_next_album(playlist)
+                        self.logger.info('Adding album "%s" by "%s" to the playqueue.', album, ', '.join(album.artists))
                         self.client.command_list_ok_begin()
                         try:
                             for song in album.songs:
@@ -60,10 +61,12 @@ class MPD_MyFM(object):
                             self.client.command_list_end()
                     else:
                         song = self.generator.get_next_song(playlist)
+                        self.logger.info('Adding song "%s" by "%s" to the playqueue.', song.title, song.artist)
                         self.client.add(song.file.absolute)
                 # Sleep for a while before trying to update again.
                 changes = self.client.idle(['player', 'playlist', 'database'])
                 if 'database' in changes:
+                    # First purge the old generator and library so the memory can be reused.
                     self.generator = None
                     self.generator = self._new_generator()
             except (socket.error, mpdunicode.ConnectionError), msgconerrer:
