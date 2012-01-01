@@ -86,7 +86,7 @@ class MPD_MyFM(object):
                 self.quit(0)
             except:
                 # TODO: get track that caused crash in error log.
-                self.logger.error('mpd-myfm has encountered a problem and will now exit.')
+                self.logger.exception('mpd-myfm has encountered a problem and will now exit.')
                 self.quit(None)
                 # We raise a RuntimeError here in stead of exit otherwise the
                 # stack gets printed by both the logging module and by the standard
