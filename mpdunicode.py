@@ -25,18 +25,19 @@
 # hassle. "import mpdunicode as mpd" in existing code should do the trick.
 #-------------------------------------------------------------------------------
 from mpd import *
+from mpd import MPDClient as MPDClientBase
 
 ENCODING = 'utf-8'
 
-if hasattr(MPDClient, '_writecommand'):
-    print('mpdunicode: Using python-mpd version 2.1 or older.')
-    class MPDClient(MPDClient):
-        ''' This proxy class wraps round the python-mpd module.
-        It converts the return values to unicode and adds support
-        for unicode input.
-        '''
-        def __init__(self):
-            super(MPDClient, self).__init__()
+class MPDClient(MPDClientBase):
+    ''' This proxy class wraps round the python-mpd module.
+    It converts the dictionary values in the output to unicode
+    objects and adds support for unicode input.
+    '''
+    def __init__(self):
+        self._cache = {}
+        MPDClientBase.__init__(self)
+        if hasattr(MPDClientBase, '_writecommand'):
             self._commands.update({'rescan': self._getitem
                                   ,'single': self._getnone
                                   ,'consume': self._getnone
@@ -44,43 +45,36 @@ if hasattr(MPDClient, '_writecommand'):
                                   ,'noidle': None
                                   })
 
+    if hasattr(MPDClientBase, '_writecommand'):
+        print 'mpdunicode: Using python-mpd version 2.1 or older.'
+
         def _writecommand(self, command, args=[]):
             args = [unicode(arg).encode(ENCODING) for arg in args]
-            super(MPDClient, self)._writecommand(command, args)
-
-        #def _readline(self):
-        #    line = super(MPDClient, self)._readline()
-        #    if line is not None:
-        #        return line.decode(ENCODING)
+            MPDClientBase._writecommand(self, command, args)
 
         def _readitem(self, separator):
-            item = super(MPDClient, self)._readitem(separator)
+            item = MPDClientBase._readitem(self, separator)
             if item:
-                item[1] = item[1].decode(ENCODING)
+                item[1] = self._decode(item[1])
             return item
 
-else:
-    print('mpdunicode: Using python-mpd version 3.0 or later.')
-    class MPDClient(MPDClient):
-        ''' This proxy class wraps round the python-mpd module.
-        It converts the dictionary values in the output to unicode
-        objects and adds support for unicode input.
-        '''
-        def __init__(self):
-            super(MPDClient, self).__init__()
+    else:
+        print 'mpdunicode: Using python-mpd version 3.0 or later.'
 
         def _write_command(self, command, args=[]):
             args = [unicode(arg).encode(ENCODING) for arg in args]
-            super(MPDClient, self)._write_command(command, args)
-
-        #def _read_line(self):
-        #    line = super(MPDClient, self)._read_line()
-        #    if line is not None:
-        #        return line.decode(ENCODING)
+            MPDClientBase._write_command(self, command, args)
 
         def _read_pair(self, separator):
-            item = super(MPDClient, self)._read_pair(separator)
+            item = MPDClientBase._read_pair(self, separator)
             if item:
-                item[1] = item[1].decode(ENCODING)
+                item[1] = self._decode(item[1])
             return item
 
+    def _decode(self, string):
+        if string in self._cache:
+            result = self._cache[string]
+        else:
+            result = string.decode(ENCODING)
+            self._cache[string] = result
+        return result
