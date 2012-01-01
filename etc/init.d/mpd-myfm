@@ -10,19 +10,36 @@
 #                    personalised radio station.
 ### END INIT INFO
 
-PIDFILE=$(grep "^pidfile" /etc/mpd-myfm.conf |awk -F\= '{print $2}')
-if [ -z $PIDFILE ] ; then
-	PIDFILE="/var/run/mpd-myfm.pid"
-fi
-
 # Get lsb functions
 . /lib/lsb/init-functions
 . /etc/default/rcS
 
+CONFIG=/etc/mpd-myfm.conf
+
+PIDFILE=$(grep "^\s*pidfile" $CONFIG |awk -F\= '{gsub(/[[:space:]]+/,"",$2); print $2}')
+
+if [ -n $PIDFILE ] ; then
+	PIDDIR=$(dirname $PIDFILE)
+	if [ ! -d $PIDDIR ] ; then
+		# create the directory where the pid file will be with correct
+		# permissions. otherwise mpd-myfm fails to start.
+		USER=$(grep "^\s*effectiveuser" $CONFIG |awk -F\=\s* '{gsub(/[[:space:]]+/,"",$2); print $2}')
+		GROUP=$(grep "^\s*effectivegroup" $CONFIG |awk -F\=\s* '{gsub(/[[:space:]]+/,"",$2); print $2}')
+		if [ -z $USER ] ; then
+			USER=0
+		fi
+		if [ -z $GROUP ] ; then
+			GROUP=0
+		fi
+		mkdir -m 755 $PIDDIR
+		chown $USER:$GROUP $PIDDIR
+	fi
+fi
+
 case "$1" in
 	start)
-		if [ -f "$PIDFILE" ] ; then
-			if kill -0 `cat "$PIDFILE"` > /dev/null 2>&1 ; then
+		if [ -f $PIDFILE ] ; then
+			if kill -0 `cat $PIDFILE` > /dev/null 2>&1 ; then
 				log_begin_msg "pidfile exists, mpd-myfm client probably already running. If you know it is not remove $PIDFILE"
 				log_end_msg 1
 				exit 1
@@ -30,7 +47,7 @@ case "$1" in
 			log_begin_msg "reusing stale pidfile at $PIDFILE"
 		fi
 		log_begin_msg "Starting mpd-myfm services..."
-		start-stop-daemon --start --exec /usr/local/bin/mpd-myfm -- -D -F $PIDFILE 
+		start-stop-daemon --start --exec $(which mpd-myfm) -- -D
 		log_end_msg $?
 		;;
 	stop)
@@ -48,11 +65,8 @@ case "$1" in
 		sleep 1
 		$0 start
 		;;
-	status)
-		status_of_proc /usr/local/bin/mpd-myfm && exit 0 || exit $?
-		;;
 	*)
-		log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload|status}"
+		log_success_msg "Usage: $0 {start|stop|restart|reload|force-reload}"
 		exit 1
 esac
 

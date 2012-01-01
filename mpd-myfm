@@ -2,6 +2,7 @@
 
 #Import with statement from __future__ to support python 2.5
 from __future__ import with_statement
+from signal import signal, SIGTERM
 import grp
 import logging
 import logging.handlers
@@ -16,16 +17,14 @@ import time
 
 class MPD_MyFM(object):
     def __init__(self, options, parser, logger):
+        signal(SIGTERM, lambda signum, stack_frame: self.quit(0))
         self.logger = logger
         self.logger.info('Started mpd-myfm client')
         self.options = options
         self.logger.debug('logging Level = %i', self.options.loglevel)
         if self.options.pidfile:
-            pidfile = self._create_pid_file()
+            self._create_pid_file()
         self._chown()
-        if self.options.pidfile:
-            # Don't close the PID file unless it was actually opened!
-            pidfile.close()
 
         self.client = mpdunicode.MPDClient()
         if not self._connect():
@@ -102,11 +101,11 @@ class MPD_MyFM(object):
         return gen
 
     def _create_pid_file(self):
-        if os.path.exists(self.options.pidfile):
-            try:
-                pidfile = open(self.options.pidfile, 'rw')
-                pid = pidfile.read(8)
-                if os.path.exists('/proc/%s' % pid) and pid != '':
+        try:
+            if os.path.exists(self.options.pidfile):
+                with open(self.options.pidfile, 'r') as pidfile:
+                    pid = pidfile.readline().strip()
+                if pid and os.path.exists('/proc/%s' % pid):
                     self.logger.warning(
                             'The pidfile (%s) points to an existing process, mpd-myfm is probably already running.',
                             self.options.pidfile)
@@ -118,22 +117,21 @@ class MPD_MyFM(object):
                     else:
                         self.logger.warning('Not using pidfile, since it is already in use by another process')
                         self.options.pidfile = ''
+                        return None
                 else:
-                    self.logger.warning('reusing stale pidfile (%s)', self.options.pidfile)
-                    pidfile = open(self.options.pidfile,'w')
-                    pidfile.write(str(os.getpid()))
-            except OSError, error:
-                self.logger.error('An error occurred while creating the pidfile: %s', error)
-        else:
-            pidfile = open(self.options.pidfile,'w')
-            pidfile.write(str(os.getpid()))
-            # We close pidfile handle later so the chown doesn't fail.
+                    self.logger.warning('Reusing stale pidfile (%s)', self.options.pidfile)
+
+            with open(self.options.pidfile, 'w') as pidfile:
+                pidfile.write('%s\n' % str(os.getpid()))
+        except OSError, error:
+            self.logger.error('An error occurred while creating the pidfile: %s', error)
         return pidfile
 
     def _chown(self):
         if self.options.effectivegroup and os.getuid() == 0:
             gid = grp.getgrnam(self.options.effectivegroup)[2]
             if self.options.pidfile:
+                self.logger.debug('changing group of pidfile %s', self.options.pidfile)
                 try:
                     os.chown(self.options.pidfile, -1, gid)
                 except OSError:
@@ -147,6 +145,7 @@ class MPD_MyFM(object):
         if self.options.effectiveuser and os.getuid() == 0:
             uid = pwd.getpwnam(self.options.effectiveuser)[2]
             if self.options.pidfile:
+                self.logger.debug('changing user of pidfile %s', self.options.pidfile)
                 try:
                     os.chown(self.options.pidfile, uid, -1)
                 except OSError:
