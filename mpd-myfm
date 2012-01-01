@@ -337,7 +337,7 @@ def _createlog(options):
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
     if not options.daemonize:
-        console_handler = logging.StreamHandler(stream=sys.stdout)
+        console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
     return logger
